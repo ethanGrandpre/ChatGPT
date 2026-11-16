@@ -1,1 +1,6 @@
-{"name":"Browser","description":"A minimal internet browser project.","collection":"Personal","status":"In progress"}
+{
+  "name": "Browser",
+  "description": "Run a separate browser workspace with tabs, search, bookmarks, and themes.",
+  "collection": "Personal",
+  "status": "In progress"
+}

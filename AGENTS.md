@@ -12,3 +12,6 @@ Run npm run build after adding or changing projects, then publish the new build.
 
 # Private hosting
 Production uses the Cloudflare Worker in `worker/`, with owner-only Access and server-side Turnstile verification. Read SECURITY.md and cloudflare-setup.md before deployment changes. Never publish dist/ to GitHub Pages: that workflow must publish only public-closed/. Keep root .nojekyll absent so legacy Jekyll builds honor _config.yml source exclusions. Never add a client-side password gate as a substitute for server authentication. Never disable assets.run_worker_first. Keep secrets outside Git.
+
+# Project launch convention
+Each new project opens its details page at projects/<slug>/index.html. Include a visible Run button linking to a separate run.html (or the actual app entrypoint). Running a project replaces the hub page with the project's own interface; do not render the hub around the running application. Describe browser/platform restrictions accurately.

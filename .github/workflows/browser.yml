@@ -1,8 +1,5 @@
 name: Build native browser
 on:
-  push:
-    branches: [main]
-    paths: ['native/browser/**', '.github/workflows/browser.yml']
   workflow_dispatch:
 permissions:
   contents: read
