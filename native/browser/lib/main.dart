@@ -63,6 +63,7 @@ class _BrowserAppState extends State<BrowserApp> {
     } on FormatException catch (e) { if (mounted) messenger.currentState?.showSnackBar(SnackBar(content: Text(e.message))); }
   }
   Future<void> update(BrowserTab tab, InAppWebViewController c, WebUri? url) async {
+    if (tab.url == null && (url == null || url.toString() == 'about:blank')) return;
     final back = await c.canGoBack(), forward = await c.canGoForward();
     if (!mounted || !tabs.contains(tab)) return;
     setState(() { tab.url = url?.toString() ?? tab.url; tab.back = back; tab.forward = forward; if (tab == current && !addressFocus.hasFocus) address.text = tab.url ?? ''; });
@@ -97,7 +98,7 @@ class _BrowserAppState extends State<BrowserApp> {
       onLoadStart: (c, url) { if (mounted) setState(() { tab.error = null; tab.progress = 0; }); update(tab, c, url); },
       onLoadStop: (c, url) { if (mounted) setState(() => tab.progress = 1); update(tab, c, url); },
       onUpdateVisitedHistory: (c, url, _) => update(tab, c, url),
-      onTitleChanged: (_, title) { if (mounted && tabs.contains(tab)) setState(() => tab.title = title?.isNotEmpty == true ? title! : 'Untitled'); },
+      onTitleChanged: (_, title) { if (mounted && tabs.contains(tab) && tab.url != null) setState(() => tab.title = title?.isNotEmpty == true ? title! : 'Untitled'); },
       onProgressChanged: (_, progress) { if (mounted) setState(() => tab.progress = progress / 100); },
       onReceivedError: (_, request, error) { if (request.isForMainFrame == true && mounted) setState(() { tab.error = error.description; tab.progress = 1; }); },
     )),
