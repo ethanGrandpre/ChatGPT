@@ -7,3 +7,5 @@ The app supports collections, drag sorting and moving, search, favorites, projec
 
 ## GitHub Pages
 This repository targets https://ethangrandpre.github.io/ChatGPT/. In repository Settings → Pages, select **GitHub Actions** as the source. Push to main to deploy; every push scans projects/ again. All hub URLs support repository subpaths. Customizations and added links persist in this browser; repo projects persist in Git. GitHub Pages hosts static apps; server applications need a separate backend/deployed URL.
+
+For a single deployment per push, set Settings → Pages → Source to GitHub Actions. The root index also forwards to the committed build as a fallback for repositories using legacy branch publishing.
