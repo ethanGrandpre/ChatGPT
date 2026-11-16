@@ -6,5 +6,5 @@ export function notify(text,undo){let el=$('#toast');if(!el){el=document.createE
 export function download(name,text,type='application/json'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 export function dateKey(d=new Date()){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 export function validDate(value){return typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value}
-export function initTheme(){document.documentElement.classList.toggle('dark',load('dock-v1',{}).theme==='dark');document.querySelectorAll('[data-theme-toggle]').forEach(b=>b.onclick=()=>{const state=load('dock-v1',{});state.theme=document.documentElement.classList.toggle('dark')?'dark':'light';save('dock-v1',state)})}
+export function initTheme(){DockAppearance.apply();document.querySelectorAll('[data-theme-toggle]').forEach(b=>b.onclick=()=>DockAppearance.toggleTheme())}
 initTheme();

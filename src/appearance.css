@@ -1,0 +1,15 @@
+/* Accent colors stay on actions and small state indicators. Default is monochrome. */
+:root[data-accent=blue]{--accent:#2458b8;--button-text:#fff;--button:#2458b8;--buttontext:#fff;--accent-soft:#edf3ff}
+:root.dark[data-accent=blue]{--accent:#a6c8ff;--button-text:#101d30;--button:#a6c8ff;--buttontext:#101d30;--accent-soft:#122037}
+:root[data-accent=sage]{--accent:#356447;--button-text:#fff;--button:#356447;--buttontext:#fff;--accent-soft:#edf5ef}
+:root.dark[data-accent=sage]{--accent:#a6d4b2;--button-text:#102719;--button:#a6d4b2;--buttontext:#102719;--accent-soft:#11251a}
+:root[data-accent=violet]{--accent:#6b43a5;--button-text:#fff;--button:#6b43a5;--buttontext:#fff;--accent-soft:#f4effb}
+:root.dark[data-accent=violet]{--accent:#d0b6fb;--button-text:#281b3a;--button:#d0b6fb;--buttontext:#281b3a;--accent-soft:#241832}
+:root[data-accent=rose]{--accent:#a33c5b;--button-text:#fff;--button:#a33c5b;--buttontext:#fff;--accent-soft:#fcf0f3}
+:root.dark[data-accent=rose]{--accent:#f3b4c8;--button-text:#351923;--button:#f3b4c8;--buttontext:#351923;--accent-soft:#32151f}
+:root[data-accent=amber]{--accent:#8a5b0a;--button-text:#fff;--button:#8a5b0a;--buttontext:#fff;--accent-soft:#fbf4e7}
+:root.dark[data-accent=amber]{--accent:#e8c780;--button-text:#2d220d;--button:#e8c780;--buttontext:#2d220d;--accent-soft:#2d220e}
+:root[data-accent]:not([data-accent=neutral]) .quick-favorite[aria-pressed=true],:root[data-accent]:not([data-accent=neutral]) .complete-task[aria-pressed=true]{color:var(--accent)}
+:root[data-accent]:not([data-accent=neutral]) .quick-filters button.active{background:var(--accent-soft);color:var(--accent)}
+:root[data-accent]:not([data-accent=neutral]) :focus-visible{outline-color:var(--accent)}
+:root[data-accent] input[type=checkbox]{accent-color:var(--accent,var(--text))}
