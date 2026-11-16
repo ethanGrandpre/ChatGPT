@@ -21,6 +21,7 @@ class BrowserApp extends StatefulWidget {
 }
 class _BrowserAppState extends State<BrowserApp> {
   final tabs = <BrowserTab>[BrowserTab(0)];
+  final messenger = GlobalKey<ScaffoldMessengerState>();
   final address = TextEditingController();
   final addressFocus = FocusNode();
   int active = 0, nextId = 1;
@@ -59,7 +60,7 @@ class _BrowserAppState extends State<BrowserApp> {
       setState(() { tab.url = url.toString(); tab.title = url.host; tab.error = null; });
       address.text = url.toString(); addressFocus.unfocus();
       await tab.controller?.loadUrl(urlRequest: URLRequest(url: WebUri(url.toString())));
-    } on FormatException catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message))); }
+    } on FormatException catch (e) { if (mounted) messenger.currentState?.showSnackBar(SnackBar(content: Text(e.message))); }
   }
   Future<void> update(BrowserTab tab, InAppWebViewController c, WebUri? url) async {
     final back = await c.canGoBack(), forward = await c.canGoForward();
@@ -86,7 +87,7 @@ class _BrowserAppState extends State<BrowserApp> {
       )))
     ])))));
   }
-  Widget tabView(BrowserTab tab) => Stack(children: [
+  Widget tabView(BrowserTab tab) => Stack(key: ValueKey('tab-${tab.id}'), children: [
     Positioned.fill(child: InAppWebView(
       key: ValueKey(tab.id),
       initialSettings: InAppWebViewSettings(javaScriptEnabled: true, useShouldOverrideUrlLoading: true, supportMultipleWindows: false, javaScriptCanOpenWindowsAutomatically: false, allowFileAccess: false, allowContentAccess: false),
@@ -108,7 +109,7 @@ class _BrowserAppState extends State<BrowserApp> {
     if (tab.error != null) Positioned.fill(child: ColoredBox(color: dark ? Colors.black : Colors.white, child: Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.cloud_off_outlined, size: 36), const SizedBox(height: 16), const Text('This page could not be loaded.'), const SizedBox(height: 8), Text(tab.error!, textAlign: TextAlign.center), TextButton(onPressed: () => tab.controller?.reload(), child: const Text('Try again'))])))))
   ]);
   @override Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false, title: 'Dock Browser', themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+    scaffoldMessengerKey: messenger, debugShowCheckedModeBanner: false, title: 'Dock Browser', themeMode: dark ? ThemeMode.dark : ThemeMode.light,
     theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: Colors.grey), scaffoldBackgroundColor: Colors.white),
     darkTheme: ThemeData(useMaterial3: true, brightness: Brightness.dark, colorScheme: ColorScheme.fromSeed(seedColor: Colors.grey, brightness: Brightness.dark), scaffoldBackgroundColor: Colors.black),
     home: Builder(builder: (ctx) => Scaffold(body: SafeArea(child: !ready ? const Center(child: CircularProgressIndicator()) : Column(children: [
