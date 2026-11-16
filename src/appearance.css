@@ -20,3 +20,10 @@
 :root.dark[data-tone=slate]{--bg:#0e131b;--panel:#0e131b;--side:#141b26;--text:#e1e8f3;--fg:#e1e8f3;--muted:#98a7bd;--line:#293548;--hover:#182231;--user:#202c3d}
 .project-row[data-marker=blue]{--marker:#527ac8}.project-row[data-marker=sage]{--marker:#60906e}.project-row[data-marker=violet]{--marker:#9270c4}.project-row[data-marker=rose]{--marker:#c66d89}.project-row[data-marker=amber]{--marker:#b28a3b}.dark .project-row[data-marker=blue]{--marker:#a6c8ff}.dark .project-row[data-marker=sage]{--marker:#a6d4b2}.dark .project-row[data-marker=violet]{--marker:#d0b6fb}.dark .project-row[data-marker=rose]{--marker:#f3b4c8}.dark .project-row[data-marker=amber]{--marker:#e8c780}
 .project-marker{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--marker);vertical-align:middle;margin-right:7px;position:relative;top:-1px}.project-row:not([data-marker=none]) .project-icon{color:var(--marker)}
+/* Fonts use only what is already available on the device. Code stays monospace. */
+:root[data-font=book] body,:root[data-font=book] button,:root[data-font=book] input,:root[data-font=book] select,:root[data-font=book] textarea{font-family:Georgia,'Times New Roman',serif}
+:root[data-font=mono] body,:root[data-font=mono] button,:root[data-font=mono] input,:root[data-font=mono] select,:root[data-font=mono] textarea{font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace}
+:root[data-corners=square] :is(.primary,.secondary,.quick-run,.search,.tool-panel,.appearance-preview,.accent-choice,dialog,textarea,select,input:not([type=checkbox]):not([type=radio])){border-radius:0}
+:root[data-corners=soft] :is(.primary,.secondary,.quick-run,.search,.tool-panel,.appearance-preview,.accent-choice,dialog,textarea,select,input:not([type=checkbox]):not([type=radio])){border-radius:12px}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
+:root[data-font] :is(pre,code,textarea[spellcheck=false]){font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace}
