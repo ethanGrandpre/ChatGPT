@@ -1,0 +1,19 @@
+# Legacy GitHub Pages must never publish the application or child project assets.
+exclude:
+  - src
+  - dist
+  - projects
+  - worker
+  - scripts
+  - tests
+  - work
+  - node_modules
+  - public-closed
+  - README.md
+  - AGENTS.md
+  - SECURITY.md
+  - package.json
+  - package-lock.json
+  - wrangler.jsonc
+  - cloudflare-setup.md
+  - LICENSE
