@@ -18,3 +18,6 @@ Each new project opens its details page at projects/<slug>/index.html. Include a
 
 # Streamed Browser project
 The Browser Run page uses projects/browser/stream.js and an authenticated /_browser Worker gateway. Mac server source is services/browser/. npm run build packages a downloadable mac-server.zip without node_modules or .env. Read services/browser/README.md before changes. Do not weaken owner checks, expose secrets to JavaScript, disable the Chromium sandbox, or remove the public-IP egress restrictions. Browsing requires the user's Mac process and Cloudflare Tunnel; never report it live solely because the hub deploy succeeded.
+
+# Shared appearance
+Every hub and child HTML page loads the shared `appearance.js` (blocking in the head, after charset/viewport) and `appearance.css`, using a correct relative path to the root. These initialize the saved light/dark/system mode, accent and canvas tone before rendering. Use `DockAppearance.toggleTheme()` for theme buttons, and preserve other `dock-v1` settings when updating a preference. Never create another independent theme store. New projects may use `project-kit.js` for standard theme button wiring.

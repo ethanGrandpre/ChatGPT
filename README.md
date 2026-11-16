@@ -17,3 +17,5 @@ The dashboard supports add/edit/remove links, collections, search, favorites, dr
 
 ### Appearance
 Open **Settings** in the hub to choose Light, Dark, or System appearance and a restrained accent color (Mono, Blue, Sage, Violet, Rose, Amber). Backgrounds stay black/white by default; color is limited to actions and highlights. The hub and child projects share the preference, including changes made in another open tab. Theme buttons switch to an explicit light/dark choice; select System again in Settings to follow your device. Preferences are browser-local and included in Export settings. Existing project records, chat history and task reminders are unaffected.
+
+Settings previews theme changes immediately. **Cancel**, Escape, or closing the dialog restores the saved theme; **Save** keeps it. Optional Paper (warm) and Slate (cool) backgrounds work in both modes. **Reset look** previews System + Mono + Pure without changing your project data. A project's edit menu also offers a small color marker and a simple icon; neither is shown unless you choose one, except the default folder icon.
