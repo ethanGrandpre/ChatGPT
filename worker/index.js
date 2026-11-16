@@ -101,6 +101,17 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       if (request.headers.get('Accept')?.includes('text/html')) return challengePage(env, request);
       return reply('Verification required.', 403);
     }
+    if (url.pathname === '/_browser/status' || url.pathname === '/_browser/socket') {
+      let endpoint;
+      try { endpoint = new URL(env.BROWSER_SERVER_URL); if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.pathname !== '/' || endpoint.search || endpoint.hash) throw Error(); } catch { return reply(JSON.stringify({configured:false,message:'Start the browser server on your Mac and connect it in Cloudflare settings.'}),503,{'Content-Type':'application/json'}); }
+      if (!env.BROWSER_SERVER_SECRET || env.BROWSER_SERVER_SECRET.length < 32) return reply(JSON.stringify({configured:false,message:'Browser server secret is missing.'}),503,{'Content-Type':'application/json'});
+      if (url.pathname === '/_browser/status') return reply(JSON.stringify({configured:true}),200,{'Content-Type':'application/json'});
+      if (request.headers.get('Origin') !== url.origin) return reply('Invalid origin.',403);
+      if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return reply('WebSocket connection required.',426);
+      const headers = new Headers({Upgrade:'websocket',Origin:url.origin,Authorization:'Bearer '+env.BROWSER_SERVER_SECRET});
+      try { return await networkFetch(new Request(new URL('/stream',endpoint),{headers,redirect:'error'})); }
+      catch { return reply('Browser server unavailable. Check that your Mac server and tunnel are running.',502); }
+    }
     let response;
     if (env.ASSETS) response = await env.ASSETS.fetch(request);
     else {

@@ -1,6 +1,6 @@
 {
   "name": "Browser",
-  "description": "Run a separate browser workspace with tabs, search, bookmarks, and themes.",
+  "description": "A real Chromium session streamed from your Mac into the project page.",
   "collection": "Personal",
   "status": "In progress"
 }

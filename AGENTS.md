@@ -15,3 +15,6 @@ Production uses the Cloudflare Worker in `worker/`, with owner-only Access and s
 
 # Project launch convention
 Each new project opens its details page at projects/<slug>/index.html. Include a visible Run button linking to a separate run.html (or the actual app entrypoint). Running a project replaces the hub page with the project's own interface; do not render the hub around the running application. Describe browser/platform restrictions accurately.
+
+# Streamed Browser project
+The Browser Run page uses projects/browser/stream.js and an authenticated /_browser Worker gateway. Mac server source is services/browser/. npm run build packages a downloadable mac-server.zip without node_modules or .env. Read services/browser/README.md before changes. Do not weaken owner checks, expose secrets to JavaScript, disable the Chromium sandbox, or remove the public-IP egress restrictions. Browsing requires the user's Mac process and Cloudflare Tunnel; never report it live solely because the hub deploy succeeded.

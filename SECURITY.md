@@ -17,3 +17,6 @@ Turnstile is optional in native Access mode and is NOT active without its three 
 - Browser localStorage is not account synchronization or a secret store. UI settings backups contain project URLs and preferences and must be handled accordingly.
 
 Run `npm test` for authentication and bot-verification boundary checks. Read `cloudflare-setup.md` before enabling private hosting.
+
+## Streamed browser
+The /_browser gateway runs after the owner check and any configured Turnstile check. WebSocket upgrades require the hub's exact Origin and a fixed HTTPS upstream configured by the administrator. The upstream receives only its dedicated shared secret, not Access JWTs, browser cookies, or client Authorization headers. The Mac service rejects unauthenticated upgrades before launching Chromium. It uses temporary contexts, browser sandboxing, a public-IP-only CONNECT proxy, blocked permissions/downloads/popups, input limits and session expiry. Its Mac launcher and hosting requirements are documented in services/browser/README.md. Do not expose the browser service or Chrome DevTools without authentication. No remote server credentials belong in client-side files or Git.

@@ -1,6 +1,6 @@
-# Browser web project
-Hub → Browser → Run → run.html. This standalone HTML page contains a responsive browsing workspace with independent embedded tabs, requested-address navigation history, bookmarks, and light/dark mode stored locally.
+# Streamed Browser
+Hub → Browser → Run → Connect. A Chromium process on your Mac streams its screen and receives input through an owner-authenticated Cloudflare WebSocket gateway. No website is embedded in an iframe, and no search-result redirect is needed.
 
-Embedding is subject to destination X-Frame-Options/CSP and mixed-content rules. The address field and back/forward track addresses submitted through this app, not navigation within cross-origin frames (which browser security prevents reading). Web searches use an explicit external search-results link. Open externally uses the real host browser. There is no proxy or header-stripping bypass and this is not a replacement browser engine.
+Download mac-server.zip from this project and follow services/browser/README.md. The Mac server, tunnel and two Cloudflare variables must be configured before Connect can work. This repository does not start software on your Mac remotely.
 
-Optional experimental native source remains in native/browser/. Native builds are manual only; the web version does not depend on them.
+Sessions and cookies are temporary. Bookmarks/theme are browser-local. The service supports search, navigation, tabs, screenshot streaming, mouse clicks, keyboard text and scrolling. Audio, uploads/downloads, clipboard sync and drag selection are not implemented. Sites can still issue CAPTCHA or reject automated browsers.
