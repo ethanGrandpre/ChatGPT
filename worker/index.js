@@ -1,3 +1,4 @@
+import bundledAssets from './assets.generated.js';
 import { createRemoteJWKSet, jwtVerify, SignJWT } from 'jose';
 
 const keySets = new Map();
@@ -48,21 +49,33 @@ function challengePage(env, request) {
 }
 
 export function createHandler({ identityVerifier = verifyIdentity, networkFetch = fetch } = {}) {
-  return async function handle(request, env) {
+  return async function handle(request, env, ctx) {
     const config = configuration(env);
-    if (!config) return reply('Private workspace setup is incomplete. No project files are available.', 503);
     let identity;
-    try { identity = await identityVerifier(request, config); }
+    const nativeAccess = !!ctx?.access;
+    if (!nativeAccess && !config) return reply('Sign-in required. Enable Cloudflare Access for this Worker.', 403);
+    try {
+      if (nativeAccess) {
+        const user = await ctx.access.getIdentity();
+        if (!user?.email || user.email.toLowerCase() !== (env.OWNER_EMAIL || '').trim().toLowerCase()) throw Error('Forbidden');
+        identity = { email: user.email, sub: user.id || user.email.toLowerCase() };
+      } else identity = await identityVerifier(request, config);
+    }
     catch { return reply('Sign-in required. Only the workspace owner can access this site.', 403); }
+    const botConfigured = !!(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY && env.SESSION_SECRET?.length >= 32);
+    const botPartial = !!(env.TURNSTILE_SITE_KEY || env.TURNSTILE_SECRET_KEY || env.SESSION_SECRET);
+    if (botPartial && !botConfigured) return reply('Bot protection configuration is incomplete.', 503);
+    const botRequired = botConfigured || !nativeAccess;
     const url = new URL(request.url);
     if (url.pathname === '/_security/identity') {
-      if (!(await verifiedSession(request, env, identity))) return reply('Verification required.', 403);
+      if (botRequired && !(await verifiedSession(request, env, identity))) return reply('Verification required.', 403);
       return reply(JSON.stringify({ email: identity.email, logoutUrl: '/_security/logout' }), 200, { 'Content-Type': 'application/json' });
     }
     if (url.pathname === '/_security/logout') {
       return reply('', 303, { Location: '/cdn-cgi/access/logout', 'Set-Cookie': `${COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0` });
     }
     if (url.pathname === '/_security/verify') {
+      if (!botConfigured) return reply('Turnstile is not configured.', 503);
       if (request.method !== 'POST') return reply('Method not allowed.', 405, { Allow: 'POST' });
       if (request.headers.get('Origin') !== url.origin) return reply('Invalid origin.', 403);
       if (!request.headers.get('Content-Type')?.startsWith('application/json')) return reply('Expected JSON.', 415);
@@ -84,11 +97,21 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       return reply(JSON.stringify({ ok: true }), 200, { 'Content-Type': 'application/json', 'Set-Cookie': `${COOKIE}=${session}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=3600` });
     }
     if (!['GET', 'HEAD'].includes(request.method)) return reply('Method not allowed.', 405, { Allow: 'GET, HEAD' });
-    if (!(await verifiedSession(request, env, identity))) {
+    if (botRequired && !(await verifiedSession(request, env, identity))) {
       if (request.headers.get('Accept')?.includes('text/html')) return challengePage(env, request);
       return reply('Verification required.', 403);
     }
-    const response = await env.ASSETS.fetch(request);
+    let response;
+    if (env.ASSETS) response = await env.ASSETS.fetch(request);
+    else {
+      const path = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
+      const encoded = bundledAssets[path];
+      if (!encoded) return reply('Not found.', 404);
+      const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+      const ext = path.split('.').pop();
+      const types = { html:'text/html; charset=utf-8', js:'text/javascript; charset=utf-8', css:'text/css; charset=utf-8', json:'application/json', svg:'image/svg+xml', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', webp:'image/webp', ico:'image/x-icon', txt:'text/plain; charset=utf-8', md:'text/plain; charset=utf-8' };
+      response = new Response(request.method === 'HEAD' ? null : bytes, {headers:{'Content-Type':types[ext] || 'application/octet-stream'}});
+    }
     const headers = new Headers(response.headers);
     for (const [key, value] of Object.entries(noCache)) headers.set(key, value);
     headers.set('Vary', 'Cookie, Cf-Access-Jwt-Assertion');

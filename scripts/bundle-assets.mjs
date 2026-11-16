@@ -1,0 +1,2 @@
+import {readdir,readFile,writeFile} from 'node:fs/promises';
+const files={};async function walk(dir,prefix=''){for(const d of await readdir(dir,{withFileTypes:true})){const p=prefix+d.name;if(d.isDirectory())await walk(dir+'/'+d.name,p+'/');else if(!d.name.startsWith('.'))files['/'+p]=(await readFile(dir+'/'+d.name)).toString('base64')}}await walk('dist');await writeFile('worker/assets.generated.js','export default '+JSON.stringify(files)+';\n');
