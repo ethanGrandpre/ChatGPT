@@ -1,0 +1,2 @@
+# Canvas
+Pointer/touch sketching with pen, eraser, line and rectangle tools, ink/size controls, grid guides, undo/redo, PNG export and editable JSON backups. Strokes persist on this device; undo history is session-local. Clear/import can be undone. The canvas is white regardless of UI theme; PNG export uses a white background and excludes the grid. Maximum 400 strokes, 2500 points per stroke and 50,000 total points. Drawing requires pointer/touch input; exported backups provide a portable editable copy.
