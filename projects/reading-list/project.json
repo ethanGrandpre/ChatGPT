@@ -1,0 +1,9 @@
+{
+  "name": "Reading list",
+  "description": "Good reads and interesting corners of the internet.",
+  "collection": "Personal",
+  "color": "sand",
+  "icon": "layers",
+  "status": "Planning",
+  "starter": true
+}

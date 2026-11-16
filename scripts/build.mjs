@@ -1,0 +1,6 @@
+import {readdir,readFile,writeFile,mkdir,cp,rm,stat} from 'node:fs/promises';
+import path from 'node:path';
+const root=process.cwd();
+export async function discover(){const found=[]; for(const d of await readdir(path.join(root,'projects'),{withFileTypes:true})){if(!d.isDirectory()||d.name.startsWith('.'))continue;const dir=path.join(root,'projects',d.name);let meta={};try{meta=JSON.parse(await readFile(path.join(dir,'project.json'),'utf8'))}catch{}const files=await readdir(dir);found.push({id:d.name,name:meta.name||d.name.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),description:meta.description||'A project in your workspace.',collection:meta.collection||'Personal',status:meta.status||'In progress',color:meta.color||'sage',icon:meta.icon||'layers',...meta,id:d.name,path:`projects/${d.name}`,url:meta.url||(files.includes('index.html')?`projects/${encodeURIComponent(d.name)}/`:`project.html?id=${encodeURIComponent(d.name)}`),files,updated:(await stat(dir)).mtime.toISOString()});}return found;}
+export async function build(){await mkdir('dist',{recursive:true});await cp('src','dist',{recursive:true});await rm('dist/projects',{recursive:true,force:true});await cp('projects','dist/projects',{recursive:true});await writeFile('dist/projects.json',JSON.stringify(await discover()));}
+if(process.argv[1]===path.join(root,'scripts/build.mjs'))await build();

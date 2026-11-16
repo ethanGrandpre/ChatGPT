@@ -1,0 +1,4 @@
+# Adding projects to Dock
+Create every new child project in `projects/<unique-slug>/`. Never maintain a manual project list. `npm run build` discovers all direct child directories and copies their assets into the hub.
+Use an optional `project.json` with name, description, collection, status (In progress / Planning / Complete), color (sage / peach / lavender / blue / sand / rose), icon, and url. A project with index.html opens directly; otherwise the hub generates a folder detail view. For framework apps, build their browser output into the child directory or set url to their deployed URL; do not copy node_modules or secrets into projects/.
+Run npm run build after adding or changing projects, then publish the new build. The development server discovers changes on the next poll (15 seconds). Browser-created links and customization are stored on that browser, not written to repository files. Never overwrite user settings to add a project.

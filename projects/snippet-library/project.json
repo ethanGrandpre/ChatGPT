@@ -1,0 +1,9 @@
+{
+  "name": "Snippet library",
+  "description": "Useful bits of code, ready when you need them.",
+  "collection": "Work",
+  "color": "blue",
+  "icon": "code",
+  "status": "In progress",
+  "starter": true
+}

@@ -1,0 +1,9 @@
+{
+  "name": "Design playground",
+  "description": "An open canvas for colors, type, and possibilities.",
+  "collection": "Experiments",
+  "color": "lavender",
+  "icon": "type",
+  "status": "Planning",
+  "starter": true
+}

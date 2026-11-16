@@ -1,0 +1,9 @@
+{
+  "name": "Idea notebook",
+  "description": "A little place to capture your next big thing.",
+  "collection": "Personal",
+  "color": "sage",
+  "icon": "notes",
+  "status": "In progress",
+  "starter": true
+}
