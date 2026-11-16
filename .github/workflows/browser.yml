@@ -1,0 +1,44 @@
+name: Build native browser
+on:
+  push:
+    branches: [main]
+    paths: ['native/browser/**', '.github/workflows/browser.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: bash native/browser/prepare.sh "$GITHUB_WORKSPACE/work/browser-build"
+      - run: flutter analyze --no-fatal-infos && flutter test && flutter build macos --release
+        working-directory: work/browser-build
+      - run: ditto -c -k --sequesterRsrc --keepParent work/browser-build/build/macos/Build/Products/Release/dock_browser.app work/Dock-Browser-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dock-Browser-macOS-unsigned
+          path: work/Dock-Browser-macOS.zip
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: bash native/browser/prepare.sh "$GITHUB_WORKSPACE/work/browser-build"
+      - run: flutter test && flutter build apk --debug
+        working-directory: work/browser-build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dock-Browser-Android-debug
+          path: work/browser-build/build/app/outputs/flutter-apk/app-debug.apk

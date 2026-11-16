@@ -17,3 +17,5 @@ exclude:
   - wrangler.jsonc
   - cloudflare-setup.md
   - LICENSE
+
+  - native
