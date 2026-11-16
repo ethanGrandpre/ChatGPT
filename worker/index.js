@@ -96,6 +96,14 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       const session = await new SignJWT({}).setProtectedHeader({ alg: 'HS256' }).setIssuer(url.origin).setAudience('dock-bot-check').setSubject(identity.sub).setIssuedAt().setExpirationTime('1h').sign(encoder.encode(env.SESSION_SECRET));
       return reply(JSON.stringify({ ok: true }), 200, { 'Content-Type': 'application/json', 'Set-Cookie': `${COOKIE}=${session}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=3600` });
     }
+    if (url.pathname === '/api/tasks-push') {
+      if (botRequired && !(await verifiedSession(request, env, identity))) return reply('Verification required.',403);
+      if (!env.TASK_PUSH) return reply(JSON.stringify({configured:false,error:'Notification storage is not configured in this deployment.'}),503,{'Content-Type':'application/json'});
+      if (!['GET','POST'].includes(request.method)) return reply('Method not allowed.',405);
+      if (request.method==='POST' && (request.headers.get('Origin')!==url.origin || !request.headers.get('Content-Type')?.startsWith('application/json'))) return reply('Invalid origin or content type.',403);
+      const objectId=env.TASK_PUSH.idFromName(identity.email.toLowerCase());
+      return env.TASK_PUSH.get(objectId).fetch(request);
+    }
     if (!['GET', 'HEAD'].includes(request.method)) return reply('Method not allowed.', 405, { Allow: 'GET, HEAD' });
     if (botRequired && !(await verifiedSession(request, env, identity))) {
       if (request.headers.get('Accept')?.includes('text/html')) return challengePage(env, request);
@@ -120,7 +128,7 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       if (!encoded) return reply('Not found.', 404);
       const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
       const ext = path.split('.').pop();
-      const types = { html:'text/html; charset=utf-8', js:'text/javascript; charset=utf-8', css:'text/css; charset=utf-8', json:'application/json', svg:'image/svg+xml', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', webp:'image/webp', ico:'image/x-icon', txt:'text/plain; charset=utf-8', md:'text/plain; charset=utf-8' };
+      const types = { html:'text/html; charset=utf-8', js:'text/javascript; charset=utf-8', css:'text/css; charset=utf-8', json:'application/json', svg:'image/svg+xml', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', webp:'image/webp', ico:'image/x-icon', txt:'text/plain; charset=utf-8', md:'text/plain; charset=utf-8',webmanifest:'application/manifest+json' };
       response = new Response(request.method === 'HEAD' ? null : bytes, {headers:{'Content-Type':types[ext] || 'application/octet-stream'}});
     }
     const headers = new Headers(response.headers);
@@ -130,3 +138,5 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
   };
 }
 export default { fetch: createHandler() };
+
+export {TaskPush} from './task-push.js';

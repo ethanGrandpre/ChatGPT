@@ -11,5 +11,21 @@
   },
   "observability": {
     "enabled": false
-  }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TASK_PUSH",
+        "class_name": "TaskPush"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "tasks-push-v1",
+      "new_sqlite_classes": [
+        "TaskPush"
+      ]
+    }
+  ]
 }
