@@ -19,10 +19,14 @@
     </header>
     <main>
       <div class="title-line"><h1>Projects <span id="project-count"></span></h1><button class="primary" id="new-project">+ Add project</button></div>
+      <p class="hub-hint">Open a project for details, or use Run to launch it.</p>
+      <div class="quick-filters" aria-label="Project views"><button data-view="All projects" class="active">All</button><button data-view="Favorites">Favorites</button><button data-view="Recently opened">Recently opened</button><button id="collections-shortcut">Collections</button></div>
       <div class="toolbar">
         <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="search" type="search" placeholder="Search projects" aria-label="Search projects"><kbd>/</kbd></label>
         <select id="collection-filter" aria-label="Filter collection"></select>
+        <select id="sort-projects" aria-label="Sort projects"><option value="custom">Custom order</option><option value="name">Name A–Z</option><option value="recent">Last opened</option></select>
       </div>
+      <div class="results-bar"><span id="results-count" role="status"></span><button id="clear-filters" hidden>Clear filters</button></div>
       <div id="projects" class="project-list" aria-label="Projects"></div>
       <p id="discovery-label" class="discovery-status" role="status"></p>
     </main>

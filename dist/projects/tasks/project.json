@@ -1,0 +1,6 @@
+{
+  "name": "Tasks",
+  "description": "A simple task list with priorities, due dates, and a clear next step.",
+  "collection": "Personal",
+  "status": "In progress"
+}
