@@ -1,0 +1,9 @@
+export function encodeBase64(text){const bytes=new TextEncoder().encode(text);let raw='';for(const b of bytes)raw+=String.fromCharCode(b);return btoa(raw)}
+export function decodeBase64(text){const raw=atob(text.trim());return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(raw,c=>c.charCodeAt(0)))}
+export function randomIndex(length){if(!Number.isInteger(length)||length<1||length>65536)throw Error('Invalid random range.');const value=new Uint32Array(1),limit=2**32-(2**32%length);do{crypto.getRandomValues(value)}while(value[0]>=limit);return value[0]%length}
+export function password(length,{symbols=true,avoid=true}={}){if(!Number.isInteger(length)||length<8||length>128)throw Error('Choose a length from 8 to 128.');const groups=[avoid?'ABCDEFGHJKLMNPQRSTUVWXYZ':'ABCDEFGHIJKLMNOPQRSTUVWXYZ',avoid?'abcdefghijkmnopqrstuvwxyz':'abcdefghijklmnopqrstuvwxyz',avoid?'23456789':'0123456789'];if(symbols)groups.push('!@#$%^&*()-_=+[]{}:,.?');const pool=groups.join(''),result=groups.map(g=>g[randomIndex(g.length)]);while(result.length<length)result.push(pool[randomIndex(pool.length)]);for(let i=result.length-1;i>0;i--){const j=randomIndex(i+1);[result[i],result[j]]=[result[j],result[i]]}return result.join('')}
+export const operations={
+ json:{'Format JSON':s=>JSON.stringify(JSON.parse(s),null,2),'Minify JSON':s=>JSON.stringify(JSON.parse(s)),'Validate JSON':s=>{JSON.parse(s);return'Valid JSON.'}},
+ text:{'Trim lines':s=>s.split('\n').map(l=>l.trim()).join('\n'),'Remove blank lines':s=>s.split('\n').filter(l=>l.trim()).join('\n'),'Remove duplicate lines':s=>[...new Set(s.split('\n'))].join('\n'),'UPPERCASE':s=>s.toUpperCase(),'lowercase':s=>s.toLowerCase(),'Sort lines':s=>s.split('\n').sort((a,b)=>a.localeCompare(b)).join('\n')},
+ encoding:{'URL encode':s=>encodeURIComponent(s),'URL decode':s=>decodeURIComponent(s),'Base64 encode':encodeBase64,'Base64 decode':decodeBase64}
+};

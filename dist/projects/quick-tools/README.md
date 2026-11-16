@@ -1,0 +1,2 @@
+# Quick Tools
+JSON format/minify/validate, text cleanup/counts, UTF-8 Base64 and URL encoding/decoding, and cryptographically random passwords. No server requests or persistent storage for tool inputs/outputs/passwords. Theme preference uses the shared hub preference. Password generation uses rejection-sampled crypto randomness, includes each selected character class, then shuffles. Output is plain text; nothing is executed. Clipboard contents are managed by the OS, not automatically cleared by this app.
