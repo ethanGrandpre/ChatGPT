@@ -1,3 +1,4 @@
+import { groupme } from './groupme.js';
 import bundledAssets from './assets.generated.js';
 import { createRemoteJWKSet, jwtVerify, SignJWT } from 'jose';
 
@@ -113,6 +114,10 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       if (request.method==='POST' && (request.headers.get('Origin')!==url.origin || !request.headers.get('Content-Type')?.startsWith('application/json'))) return reply('Invalid origin or content type.',403);
       const objectId=env.TASK_PUSH.idFromName(identity.email.toLowerCase());
       return env.TASK_PUSH.get(objectId).fetch(request);
+    }
+    if (url.pathname.startsWith('/api/groupme/')) {
+      if (botRequired && !(await verifiedSession(request, env, identity))) return reply('Verification required.',403);
+      return groupme(request, env, networkFetch);
     }
     if (!['GET', 'HEAD'].includes(request.method)) return reply('Method not allowed.', 405, { Allow: 'GET, HEAD' });
     if (botRequired && !(await verifiedSession(request, env, identity))) {
