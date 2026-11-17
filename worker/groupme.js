@@ -3,6 +3,17 @@ export async function groupme(request, env, networkFetch=fetch) {
  const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
  const url=new URL(request.url),action=url.pathname.slice('/api/groupme/'.length);
  if(!['GET','POST'].includes(request.method))return json({error:'Method not allowed.'},405);
+ if(action==='verify'&&request.method==='POST'){
+  if(request.headers.get('Origin')!==url.origin||!request.headers.get('Content-Type')?.startsWith('application/json'))return json({error:'Invalid origin or content type.'},403);
+  try{
+   const raw=await request.text();if(raw.length>5000)return json({error:'Invalid token.'},400);
+   const {token}=JSON.parse(raw);if(typeof token!=='string'||!token||token.length>4096||/[\r\n]/.test(token))return json({error:'Invalid token.'},400);
+   const response=await networkFetch('https://api.groupme.com/v3/users/me',{headers:{'X-Access-Token':token},redirect:'error',signal:AbortSignal.timeout(15000)});
+   if(!response.ok)return json({error:'GroupMe could not verify this token. Start authorization again.'},502);
+   const data=await response.json(),user=data.response;if(!user?.id||!user?.name)return json({error:'GroupMe returned no account profile.'},502);
+   return json({name:user.name,id:String(user.id)});
+  }catch{return json({error:'Account verification failed. Start authorization again.'},502)}
+ }
  if(!env.GROUPME_ACCESS_TOKEN)return json({error:'Connect your account: add GROUPME_ACCESS_TOKEN as a Cloudflare Worker secret. See the GroupMe project setup.'},503);
  let path,body;
  const id=url.searchParams.get('group');
