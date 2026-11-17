@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <script src="../../project-sync.js"></script>
+  <script src="../../appearance.js"></script>
+  <link rel="stylesheet" href="../../appearance.css">
+  <title>Desktop</title>
+  <link rel="stylesheet" href="desktop.css">
+  <link rel="stylesheet" href="desktop-tweaks.css">
+</head>
+<body>
+  <main id="desktop" class="desktop" data-wallpaper="night">
+    <section id="pc-view" class="pc-view" aria-label="Desktop workspace">
+      <div class="wallpaper"></div>
+      <header class="pc-topbar"><a href="index.html" class="top-brand">dock <span>desktop</span></a><div class="top-center" id="top-date"></div><div class="top-actions"><button id="pc-notifications" aria-label="Open notifications">◌</button><button id="pc-theme" aria-label="Switch theme">◐</button><span id="pc-clock" class="clock"></span></div></header>
+      <nav id="pc-icons" class="pc-icons" aria-label="Pinned apps"></nav>
+      <section class="welcome-card"><div class="eyebrow">YOUR WORKSPACE</div><h1 id="welcome-name">Good day.</h1><p>Choose a project from Start, open a pinned app, or double-click a desktop icon.</p><button id="open-projects" class="primary">Browse projects <span>→</span></button></section>
+      <div id="windows" class="windows" aria-label="Open application windows"></div>
+      <div id="start-menu" class="start-menu" hidden>
+        <div class="start-head"><strong>Start</strong><button id="close-start" aria-label="Close Start">×</button></div>
+        <label class="start-search"><span>⌕</span><input id="app-search" type="search" placeholder="Search projects and apps" autocomplete="off"></label>
+        <div class="start-label"><span>All apps</span><button id="show-all-projects">Browse projects</button></div>
+        <div id="start-apps" class="start-apps"></div>
+        <footer class="start-footer"><span id="workspace-owner">Private workspace</span><button id="start-settings">Settings</button></footer>
+      </div>
+      <div id="notification-panel" class="notification-panel" hidden><header><strong>Notifications</strong><button data-close-panel="notification-panel" aria-label="Close notifications">×</button></header><div id="notification-content"></div><button id="open-tasks" class="quiet-link">Open Tasks →</button></div>
+      <footer class="taskbar"><button id="start-button" class="start-button" aria-label="Open Start"><span class="start-mark">▦</span></button><button id="taskbar-projects" class="taskbar-pin" aria-label="Open projects">▤</button><div id="taskbar-open" class="taskbar-open"></div><div class="taskbar-tray"><button id="tray-notifications" aria-label="Open notifications">◌</button><button id="taskbar-theme" aria-label="Switch theme">◐</button><time id="taskbar-clock"></time></div></footer>
+    </section>
+    <section id="phone-view" class="phone-view" aria-label="Phone workspace" hidden>
+      <div class="phone-wallpaper"></div>
+      <header class="phone-status"><a href="index.html" aria-label="Back to projects">‹</a><time id="phone-clock"></time><button id="phone-notifications" aria-label="Open notifications">◌</button></header>
+      <main id="phone-home" class="phone-home">
+        <section class="phone-date"><span class="eyebrow">DOCK · YOUR WORKSPACE</span><time id="phone-date"></time><p>Your projects, in one place.</p></section>
+        <button id="phone-search-open" class="phone-search"><span>⌕</span> Search projects <span class="search-shortcut">⌕</span></button>
+        <div id="phone-favorites" class="phone-favorites" aria-label="Pinned apps"></div>
+        <section class="phone-apps-section"><div class="phone-section-head"><h1>Projects</h1><span id="phone-app-count"></span></div><div id="phone-apps" class="phone-apps"></div></section>
+        <nav class="phone-dock" aria-label="Phone navigation"><button data-phone-tab="home" class="active"><span>⌂</span>Home</button><button data-phone-tab="apps"><span>▦</span>Apps</button><button data-phone-tab="recent"><span>◷</span>Recent</button><button id="phone-settings"><span>⚙</span>Settings</button></nav>
+      </main>
+      <section id="phone-app" class="phone-app" hidden><header><button id="phone-back" aria-label="Back to home">‹</button><span id="phone-app-title"></span><button id="phone-app-menu" aria-label="App options">···</button></header><iframe id="phone-frame" title="Project app" referrerpolicy="same-origin"></iframe></section>
+      <section id="phone-search" class="phone-search-screen" hidden><header><button id="phone-search-back" aria-label="Back to home">‹</button><input id="phone-query" type="search" placeholder="Search apps" autocomplete="off"></header><div id="phone-search-results"></div></section>
+      <div id="phone-notification-panel" class="phone-notification-panel" hidden><header><strong>Notifications</strong><button data-close-panel="phone-notification-panel" aria-label="Close notifications">×</button></header><div id="phone-notification-content"></div><button id="phone-open-tasks" class="quiet-link">Open Tasks →</button></div>
+      <div class="phone-home-indicator" aria-hidden="true"></div>
+    </section>
+  </main>
+  <script type="module">await window.DockProjectSync.ready;await import('./desktop.js');</script>
+</body>
+</html>

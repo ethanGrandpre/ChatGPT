@@ -4,7 +4,9 @@ import { createRemoteJWKSet, jwtVerify, SignJWT } from 'jose';
 const keySets = new Map();
 const encoder = new TextEncoder();
 const COOKIE = '__Host-dock_verified';
-const noCache = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'DENY' };
+// Project apps may run inside the same-origin Desktop shell. Cross-origin framing
+// remains blocked, and the CSP frame-ancestors policy below is still enforced.
+const noCache = { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'SAMEORIGIN' };
 const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const reply = (text, status = 200, headers = {}) => new Response(text, { status, headers: { ...noCache, ...headers } });
 
@@ -121,7 +123,15 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       let endpoint;
       try { endpoint = new URL(env.BROWSER_SERVER_URL); if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.pathname !== '/' || endpoint.search || endpoint.hash) throw Error(); } catch { return reply(JSON.stringify({configured:false,message:'Start the browser server on your Mac and connect it in Cloudflare settings.'}),503,{'Content-Type':'application/json'}); }
       if (!env.BROWSER_SERVER_SECRET || env.BROWSER_SERVER_SECRET.length < 32) return reply(JSON.stringify({configured:false,message:'Browser server secret is missing.'}),503,{'Content-Type':'application/json'});
-      if (url.pathname === '/_browser/status') return reply(JSON.stringify({configured:true}),200,{'Content-Type':'application/json'});
+      if (url.pathname === '/_browser/status') {
+        try {
+          const health = await networkFetch(new Request(new URL('/health', endpoint), {signal:AbortSignal.timeout(2500), redirect:'error'}));
+          if (!health.ok) throw Error();
+          return reply(JSON.stringify({configured:true,online:true}),200,{'Content-Type':'application/json'});
+        } catch {
+          return reply(JSON.stringify({configured:true,online:false,message:'The browser server is configured, but your Mac or its Cloudflare tunnel is offline. Start the browser server and tunnel on your Mac, then retry.'}),503,{'Content-Type':'application/json'});
+        }
+      }
       if (request.headers.get('Origin') !== url.origin) return reply('Invalid origin.',403);
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return reply('WebSocket connection required.',426);
       const headers = new Headers({Upgrade:'websocket',Origin:url.origin,Authorization:'Bearer '+env.BROWSER_SERVER_SECRET});

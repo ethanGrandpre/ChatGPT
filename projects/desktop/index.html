@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <script src="../../project-sync.js"></script>
+  <script src="../../appearance.js"></script>
+  <link rel="stylesheet" href="../../appearance.css">
+  <link rel="stylesheet" href="../../style.css">
+  <title>Desktop — Dock</title>
+  <style>
+    .about{max-width:760px;margin:auto;padding:0 24px}.about header{height:76px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}.about main{padding:52px 0}.about h1{font-size:32px;letter-spacing:-1px;font-weight:500;margin:10px 0}.about p{font-size:12px;line-height:1.8;color:var(--muted);max-width:560px}.about .primary{display:inline-block;background:var(--text);color:var(--bg);border-radius:5px;padding:11px 15px;font-size:12px;margin-top:22px}.about .hint{border-top:1px solid var(--line);margin-top:45px;padding-top:18px;font-size:11px}@media(max-width:600px){.about{padding:0 18px}.about main{padding:35px 0}.about h1{font-size:27px}.about header{height:62px}}
+  </style>
+</head>
+<body>
+  <div class="about">
+    <header><a href="../../">← Projects</a><button id="theme" aria-label="Switch theme">◐</button></header>
+    <main>
+      <div class="eyebrow">YOUR PROJECTS · ONE QUIET DESKTOP</div>
+      <h1>Desktop</h1>
+      <p>A minimal workspace that adapts to your screen: movable project windows on a computer, and a focused app launcher on a phone.</p>
+      <a class="primary" href="run.html">Run Desktop →</a>
+      <p class="hint">Project data uses your private Dock sync while you are signed in and online. Opened apps stay inside this workspace and use the same account.</p>
+    </main>
+  </div>
+  <script>document.getElementById('theme').addEventListener('click',()=>window.DockAppearance?.toggleTheme());</script>
+</body>
+</html>
