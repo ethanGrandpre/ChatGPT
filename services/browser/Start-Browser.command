@@ -1,13 +1,31 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-command -v node >/dev/null || { echo 'Install Node.js 22+ from https://nodejs.org/ and run this again.'; read -r -p 'Press Enter to close'; exit 1; }
-node -e 'if(Number(process.versions.node.split(".")[0])<22){console.error("Node.js 22 or newer is required.");process.exit(1)}'
+
+if ! command -v python3 >/dev/null; then
+  echo 'Python 3 is required. Install it from python.org or with Homebrew, then retry.'
+  read -r -p 'Press Enter to close'
+  exit 1
+fi
+python3 -c 'import sys; exit(0 if sys.version_info >= (3, 10) else 1)' || {
+  echo 'Python 3.10 or newer is required.'
+  read -r -p 'Press Enter to close'
+  exit 1
+}
+
 if [ ! -f .env ]; then
   umask 077
-  node --input-type=module -e "import{randomBytes}from'node:crypto';import{writeFileSync}from'node:fs';writeFileSync('.env','ALLOWED_ORIGIN=https://chatgpt.ethan-grandpre0360.workers.dev\\nBROWSER_SERVER_SECRET='+randomBytes(48).toString('hex')+'\\n',{mode:0o600})"
+  python3 - <<'PY'
+from pathlib import Path
+import secrets
+Path('.env').write_text('ALLOWED_ORIGIN=https://chatgpt.ethan-grandpre0360.workers.dev\nBROWSER_SERVER_SECRET='+secrets.token_hex(48)+'\n')
+PY
+  chmod 600 .env
 fi
-npm ci
-npx playwright install chromium
-printf '\nKeep this Terminal window open. In another Terminal, run:\ncloudflared tunnel --url http://127.0.0.1:8788\n\nSee README.md to connect the tunnel URL and secret to Cloudflare.\n'
-node --env-file=.env server.mjs
+
+if [ ! -d .venv ]; then python3 -m venv .venv; fi
+.venv/bin/python -m pip install -r requirements.txt
+printf '\nKeep this Terminal window open. In another Terminal, run:\n'
+printf 'cloudflared tunnel --url http://127.0.0.1:8788\n\n'
+printf 'See README.md to connect the tunnel URL and secret to Cloudflare.\n\n'
+exec .venv/bin/python server.py

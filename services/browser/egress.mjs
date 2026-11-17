@@ -1,8 +1,0 @@
-import http from 'node:http';
-import net from 'node:net';
-import {lookup} from 'node:dns/promises';
-import ipaddr from 'ipaddr.js';
-export function publicAddress(address){try{let ip=ipaddr.parse(address);if(ip.kind()==='ipv6'&&ip.isIPv4MappedAddress())ip=ip.toIPv4Address();return ip.range()==='unicast'}catch{return false}}
-export async function resolvePublic(host, resolver=lookup){const addresses=await resolver(host,{all:true,verbatim:true});if(!addresses.length||addresses.some(a=>!publicAddress(a.address)))throw Error('Private network destination blocked');return addresses[0].address}
-// Resolve once, validate every address, then connect to the validated IP, not the hostname.
-export async function startEgress(){const server=http.createServer((req,res)=>{res.writeHead(403);res.end('HTTPS connections only')});server.on('connect',async(req,client,head)=>{try{const u=new URL('https://'+req.url);if(u.port&&u.port!=='443')throw Error();const host=u.hostname.replace(/^\[|\]$/g,'');const address=await resolvePublic(host);if(client.destroyed)return;const upstream=net.connect({host:address,port:443});upstream.setTimeout(60000,()=>upstream.destroy());upstream.on('error',()=>client.destroy());client.on('error',()=>upstream.destroy());client.on('close',()=>upstream.destroy());upstream.once('connect',()=>{client.write('HTTP/1.1 200 Connection Established\r\n\r\n');if(head.length)upstream.write(head);upstream.pipe(client);client.pipe(upstream)})}catch{client.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')}});await new Promise(r=>server.listen(0,'127.0.0.1',r));return{url:`http://127.0.0.1:${server.address().port}`,close:()=>new Promise(r=>server.close(r))}}

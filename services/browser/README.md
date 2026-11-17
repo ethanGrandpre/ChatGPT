@@ -5,8 +5,8 @@ The hub now displays screenshots of a real Chromium process and sends clicks, ty
 ## One-time setup
 
 1. Download `mac-server.zip` from the Browser project page and unzip it on your Mac.
-2. Install Node.js **22+** from https://nodejs.org/ and Cloudflare's `cloudflared` from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/ . If you use Homebrew, Cloudflare documents `brew install cloudflared`.
-3. Open Terminal, type `bash ` (including the space), drag `Start-Browser.command` from the extracted folder into Terminal, and press Enter. The launcher installs the locked Node packages and Chromium, generates a private `.env` with a random shared secret, and starts a localhost-only server.
+2. Make sure Python **3.10+**, Google Chrome (or Chromium), and Cloudflare `cloudflared` are already installed. The server uses the Chrome browser on your Mac; it does not download Node.js or Chromium. The first run uses `pip` to install the Python server packages in a private `.venv` folder.
+3. Open Terminal, type `bash ` (including the space), drag `Start-Browser.command` from the extracted folder into Terminal, and press Enter. It creates a private `.env` with a random shared secret and starts a localhost-only server.
 4. Open another Terminal and run `cloudflared tunnel --url http://127.0.0.1:8788`. Copy the HTTPS `trycloudflare.com` URL it prints. It is a temporary endpoint, not a secret. Keep both Terminal windows running.
 5. In Cloudflare → Workers & Pages → **chatgpt** → Settings → Variables and Secrets, add:
 
@@ -18,7 +18,7 @@ The hub now displays screenshots of a real Chromium process and sends clicks, ty
 To copy the secret directly to your Mac clipboard without putting it in chat or shell history, run this from the extracted server directory:
 
 ```
-node --env-file=.env -e 'process.stdout.write(process.env.BROWSER_SERVER_SECRET)' | pbcopy
+python3 -c "print(next(line.split('=', 1)[1] for line in open('.env') if line.startswith('BROWSER_SERVER_SECRET=')), end='')" | pbcopy
 ```
 
 Save/deploy Cloudflare settings. Return to the hub → Browser → Run → **Connect**. No browser server is connected until these settings exist. The secret is sent only between the authenticated Worker and your server, never to page JavaScript.
