@@ -1,6 +1,6 @@
 # AI Assistant
 
-Hub → AI Assistant → Run. Browser-only text chat backed by Puter.js online AI, with streamed responses, model selection, device-local conversation history, new/delete chat, copy/export, retry/stop and light/dark mode. No local model download, API key entry or Mac server is required. The SDK is loaded from https://js.puter.com/v2/ .
+Hub → AI Assistant → Run. Browser-only text chat backed by Puter.js online AI, with streamed responses, model selection, device-local conversation history, title search, new/delete chat, copy/export, retry/stop and light/dark mode. No local model download, API key entry or Mac server is required. The SDK is loaded from https://js.puter.com/v2/ .
 
 Puter authentication may be required. Model availability, allowances, charges and rate limits are controlled by Puter and the user's provider account. This is keyless, not a promise of unlimited free usage. Provider documentation: https://docs.puter.com/AI/chat/ and https://docs.puter.com/user-pays-model/ .
 
