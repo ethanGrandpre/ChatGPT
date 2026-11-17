@@ -1,3 +1,4 @@
+import {groupmeLive} from './groupme-live.js';
 // All calls reach this module only after Dock owner authentication.
 export const GROUPME_RELEASE='groupme-notify-emoji-1';
 export const GROUPME_EMOJI=['❤️','👍','🤣','🎉','🔥','😮','👀','😭','🥺','🙏','💀','🫶','🤬','💅','🫠'];
@@ -12,6 +13,7 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
  const token=typeof env.GROUPME_ACCESS_TOKEN==='string'?env.GROUPME_ACCESS_TOKEN.trim():'';
  if(!token)return failure('Add GROUPME_ACCESS_TOKEN as a Secret on the chatgpt Worker, then save and deploy.','SETUP',503);
  if(/[^\x21-\x7e]/.test(token))return failure('The saved token contains invalid characters. Copy only Your Access Token from GroupMe’s application page.','TOKEN_FORMAT',503);
+ if(action==='live')return groupmeLive(request,token,networkFetch);
  let path,body,deleteTarget,reactionTarget;
  if(request.method==='GET'&&action==='status')path='/v3/users/me';
  else if(request.method==='GET'&&['groups','chats'].includes(action)){
