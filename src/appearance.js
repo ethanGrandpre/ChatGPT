@@ -13,5 +13,6 @@
  window.DockAppearance={read,normalize,apply,update,toggleTheme,isDark,accents,modes,tones,fonts,corners};
  media.addEventListener('change',()=>{if(current.theme==='system')apply({...read(),...current})});
  window.addEventListener('storage',e=>{if(e.key===KEY||e.key===null)apply()});
+ const statusScript=document.createElement('script');statusScript.src=new URL('deployment-status.js',document.currentScript.src).href;statusScript.defer=true;document.head.append(statusScript);
  apply();document.addEventListener('DOMContentLoaded',()=>apply());
 })();
