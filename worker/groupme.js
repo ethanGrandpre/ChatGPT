@@ -13,6 +13,14 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
  const token=typeof env.GROUPME_ACCESS_TOKEN==='string'?env.GROUPME_ACCESS_TOKEN.trim():'';
  if(!token)return failure('Add GROUPME_ACCESS_TOKEN as a Secret on the chatgpt Worker, then save and deploy.','SETUP',503);
  if(/[^\x21-\x7e]/.test(token))return failure('The saved token contains invalid characters. Copy only Your Access Token from GroupMe’s application page.','TOKEN_FORMAT',503);
+ if(action==='upload'&&request.method==='POST'){
+  if(request.headers.get('Origin')!==url.origin)return failure('Invalid origin.','ORIGIN',403);
+  const type=request.headers.get('Content-Type');if(!['image/jpeg','image/png','image/gif','image/webp'].includes(type))return failure('Choose a JPG, PNG, GIF or WebP photo.','FILE_TYPE',400);
+  if(Number(request.headers.get('Content-Length'))>8000000)return failure('Photo must be under 8 MB.','FILE_SIZE',413);
+  try{const bytes=await request.arrayBuffer();if(!bytes.byteLength||bytes.byteLength>8000000)return failure('Photo must be under 8 MB.','FILE_SIZE',413);
+   const result=await networkFetch(new Request('https://image.groupme.com/pictures',{method:'POST',headers:{'X-Access-Token':token,'Content-Type':type},body:bytes,redirect:'manual',signal:AbortSignal.timeout(25000)}));if(!result.ok)return failure('GroupMe could not upload this photo.','UPLOAD');const data=await result.json(),photo=new URL(data.payload?.url||data.payload?.picture_url);if(photo.origin!=='https://i.groupme.com'||photo.username||photo.password)throw Error();return reply({response:{url:photo.href}});
+  }catch{return failure('Photo upload failed. Your message was not sent.','UPLOAD')}
+ }
  if(action==='live')return groupmeLive(request,token,networkFetch);
  let path,body,deleteTarget,reactionTarget;
  if(request.method==='GET'&&action==='status')path='/v3/users/me';
@@ -38,8 +46,9 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
   if(Number(request.headers.get('Content-Length'))>16000)return failure('Message is too large.','INPUT',413);
   try{const raw=await request.text();if(raw.length>16000)return failure('Message is too large.','INPUT',413);body=JSON.parse(raw)}catch{return failure('Invalid message.','INPUT',400)}
   const target=body?.group;
-  if(!/^\d{1,30}$/.test(target||'')||typeof body.text!=='string'||!body.text.trim()||body.text.length>1000||! /^[\w-]{8,80}$/.test(body.source||''))return failure('Choose a conversation and enter up to 1,000 characters.','INPUT',400);
-  path='/v3/groups/'+target+'/messages';body={message:{source_guid:body.source,text:body.text.trim()}};
+  if(!/^\d{1,30}$/.test(target||'')||typeof body.text!=='string'||(!body.text.trim()&&!body.attachments?.length)||body.text.length>1000||! /^[\w-]{8,80}$/.test(body.source||''))return failure('Choose a conversation and enter up to 1,000 characters.','INPUT',400);
+  if(body.attachments!==undefined&&(!Array.isArray(body.attachments)||body.attachments.length>1||body.attachments.some(a=>a.type!=='image'||typeof a.url!=='string'||!/^https:\/\/i\.groupme\.com\/[^\s]+$/.test(a.url))))return failure('Invalid photo attachment.','INPUT',400);
+  path='/v3/groups/'+target+'/messages';body={message:{source_guid:body.source,text:body.text.trim(),...(body.attachments?.length?{attachments:body.attachments}:{})}};
  }else return failure('Unknown GroupMe action.','ROUTE',404);
  try{
   const signal=AbortSignal.timeout(15000);
