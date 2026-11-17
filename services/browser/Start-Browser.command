@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
+trap 'code=$?; echo "Browser setup or startup failed (exit $code). Check the message above."; if [ -t 0 ]; then read -r -p "Press Enter to close"; fi' ERR
 
 if ! command -v python3 >/dev/null; then
   echo 'Python 3 is required. Install it from python.org or with Homebrew, then retry.'
