@@ -1,3 +1,5 @@
+// Only allowlisted categories leave the Worker, never raw exception messages.
+function transportReason(error){const message=String(error?.message||'').toLowerCase();if(message.includes('redirect'))return 'REDIRECT_MODE';if(message.includes('dns')||message.includes('resolve'))return 'DNS';if(message.includes('tls')||message.includes('certificate')||message.includes('ssl'))return 'TLS';if(message.includes('header')||message.includes('bytestring'))return 'HEADER';if(message.includes('connection'))return 'CONNECTION';if(message.includes('context'))return 'RUNTIME_CONTEXT';return 'UNKNOWN'}
 // Called only after Dock owner authentication and optional bot verification.
 export async function groupme(request, env, networkFetch=fetch.bind(globalThis)) {
  const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
@@ -8,7 +10,7 @@ export async function groupme(request, env, networkFetch=fetch.bind(globalThis))
   try{
    const raw=await request.text();if(raw.length>5000)return json({error:'Invalid token.'},400);
    const {token}=JSON.parse(raw);if(typeof token!=='string'||!token||token.length>4096||/[\r\n]/.test(token))return json({error:'Invalid token.'},400);
-   const response=await networkFetch('https://api.groupme.com/v3/users/me',{headers:{'X-Access-Token':token},redirect:'error',signal:AbortSignal.timeout(15000)});
+   const response=await networkFetch('https://api.groupme.com/v3/users/me',{headers:{'X-Access-Token':token},redirect:'manual',signal:AbortSignal.timeout(15000)});
    if(!response.ok)return json({error:'GroupMe could not verify this token. Start authorization again.'},502);
    const data=await response.json(),user=data.response;if(!user?.id||!user?.name)return json({error:'GroupMe returned no account profile.'},502);
    return json({name:user.name,id:String(user.id)});
@@ -30,11 +32,11 @@ export async function groupme(request, env, networkFetch=fetch.bind(globalThis))
   path='/groups/'+data.group+'/messages';body={message:{source_guid:data.source,text:data.text.trim()}};
  }else return json({error:'Unknown GroupMe action.'},400);
  try{
-  const response=await networkFetch('https://api.groupme.com/v3'+path,{method:body?'POST':'GET',headers:{'X-Access-Token':accessToken,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(15000)});
+  const response=await networkFetch('https://api.groupme.com/v3'+path,{method:body?'POST':'GET',headers:{'X-Access-Token':accessToken,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),redirect:'manual',signal:AbortSignal.timeout(15000)});
   if(response.status===304)return json({response:{messages:[]}});
   if(!response.ok)return json({error:response.status===401?'GroupMe rejected the access token. Copy Your Access Token from the application details, not the Client ID, and replace the Worker secret. [GM_TOKEN_REJECTED]':response.status===429?'GroupMe rate limit reached. Wait before refreshing. [GM_RATE_LIMIT]':`GroupMe returned HTTP ${response.status}. Refresh before retrying a send. [GM_UPSTREAM]`},response.status===429?429:502);
   let data;try{data=await response.json()}catch{return json({error:'GroupMe returned a non-JSON response. [GM_RESPONSE_FORMAT]'},502)}
  if(!data||!Object.hasOwn(data,'response'))return json({error:'GroupMe returned an unexpected response structure. [GM_RESPONSE_SHAPE]'},502);
  return json({response:data.response});
- }catch(error){const timeout=['TimeoutError','AbortError'].includes(error?.name);return json({error:timeout?'GroupMe did not respond within 15 seconds. [GM_TIMEOUT]':error?.message?.includes('Illegal invocation')?'The Worker could not invoke its network client. [GM_FETCH_BINDING]':'The Worker could not connect to GroupMe. [GM_TRANSPORT]'},502)}
+ }catch(error){const timeout=['TimeoutError','AbortError'].includes(error?.name);return json({error:timeout?'GroupMe did not respond within 15 seconds. [GM_TIMEOUT]':error?.message?.includes('Illegal invocation')?'The Worker could not invoke its network client. [GM_FETCH_BINDING]':`The Worker could not connect to GroupMe. [GM_TRANSPORT:${transportReason(error)}]`},502)}
 }
