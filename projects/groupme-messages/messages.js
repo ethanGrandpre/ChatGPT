@@ -4,13 +4,13 @@ const status=text=>$('status').textContent=text;
 async function api(action,options={}){
  let response;try{response=await fetch('/api/groupme/'+action,{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(22000),...options})}catch{throw Error('Connection to Dock failed or timed out. Check your connection and reconnect.')}
  let data;try{data=await response.json()}catch{throw Error('Dock returned a sign-in page or unreadable response. Sign into Dock again and reload.')}
- $('release').textContent='Client: groupme-dms-1 · Backend: '+(data.release||'older version');
- if(data.release!=='groupme-dms-1')throw Error('This is an older Worker deployment. Wait for the newest Cloudflare deployment, then reload.');
+ $('release').textContent='Client: groupme-dms-readonly-1 · Backend: '+(data.release||'older version');
+ if(data.release!=='groupme-dms-readonly-1')throw Error('This is an older Worker deployment. Wait for the newest Cloudflare deployment, then reload.');
  if(response.status===429)retryAt=Date.now()+60000;
  if(!response.ok)throw Error((data.error||'GroupMe request failed.')+' ['+(data.code||response.status)+']');
  return data.response;
 }
-function renderGroups(){const q=$('search').value.toLowerCase();$('groups').replaceChildren();for(const group of groups.filter(g=>g.name.toLowerCase().includes(q))){const button=document.createElement('button');button.textContent=group.name;button.setAttribute('aria-pressed',String(current?.id===group.id));button.onclick=()=>{if(busy)return;if($('text').value&&!confirm('Discard your unsent message and switch conversations?'))return;current=group;$('send-status').textContent='';source=crypto.randomUUID();lastText='';generation++;messages=[];$('text').value='';$('compose').hidden=false;$('title').textContent=group.name;$('refresh').disabled=false;$('text').disabled=false;$('send').disabled=false;renderGroups();loadMessages()};$('groups').append(button)}}
+function renderGroups(){const q=$('search').value.toLowerCase();$('groups').replaceChildren();for(const group of groups.filter(g=>g.name.toLowerCase().includes(q))){const button=document.createElement('button');button.textContent=group.name;button.setAttribute('aria-pressed',String(current?.id===group.id));button.onclick=()=>{if(busy)return;if($('text').value&&!confirm('Discard your unsent message and switch conversations?'))return;current=group;$('send-status').textContent='';source=crypto.randomUUID();lastText='';generation++;messages=[];$('text').value='';$('compose').hidden=mode==='dms';$('dm-note').hidden=mode!=='dms';$('title').textContent=group.name;$('refresh').disabled=false;$('text').disabled=false;$('send').disabled=false;renderGroups();loadMessages()};$('groups').append(button)}}
 async function loadGroups(more=false,quiet=false){
  if(busy)return false;listing++;const listMode=mode;$('refresh-groups').disabled=true;$('more-groups').disabled=true;$('refresh-groups').textContent='Connecting…';$('status').dataset.error='false';
  if(!quiet)status('Checking your saved GroupMe account…');
@@ -42,11 +42,11 @@ async function loadMessages(older=false,live=false){
  finally{reading--;if(version===generation&&!live){$('refresh').disabled=false;$('older').disabled=false}}
 }
 $('compose').onsubmit=async event=>{
- event.preventDefault();const text=$('text').value.trim();if(!text||!current||busy)return;
+ event.preventDefault();if(mode==='dms'){$('send-status').textContent='DMs are read-only because GroupMe does not allow DM sending through its Developer API.';return}const text=$('text').value.trim();if(!text||!current||busy)return;
  if(text!==lastText){source=crypto.randomUUID();lastText=text}
  busy=true;$('send').disabled=true;$('text').disabled=true;$('send-status').textContent='Sending…';
  try{
-  await api(mode==='dms'?'send-direct':'send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[mode==='dms'?'user':'group']:String(current.id),text,source})});
+  await api('send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group:String(current.id),text,source})});
   $('text').value='';source=crypto.randomUUID();lastText='';$('send-status').textContent='Sent.';
   const refreshed=await loadMessages();if(!refreshed)$('send-status').textContent='Sent. Conversation refresh failed; use Refresh to check for updates. Do not resend.';
  }catch(e){$('send-status').textContent=e.message+' Your draft is still here. No automatic resend was attempted.'}
@@ -54,7 +54,7 @@ $('compose').onsubmit=async event=>{
 };
 function switchMode(next){
  if(busy||mode===next)return;if($('text').value&&!confirm('Discard your unsent message and switch conversations?'))return;
- mode=next;$('send-status').textContent='';generation++;current=null;messages=[];groups=[];page=1;$('text').value='';$('compose').hidden=true;$('messages').replaceChildren();$('title').textContent='Choose a conversation';$('refresh').disabled=true;$('older').hidden=true;$('more-groups').hidden=true;$('search').value='';$('list-title').textContent=mode==='dms'?'Direct messages':'Groups';
+ mode=next;$('dm-note').hidden=mode!=='dms';$('send-status').textContent='';generation++;current=null;messages=[];groups=[];page=1;$('text').value='';$('compose').hidden=true;$('messages').replaceChildren();$('title').textContent='Choose a conversation';$('refresh').disabled=true;$('older').hidden=true;$('more-groups').hidden=true;$('search').value='';$('list-title').textContent=mode==='dms'?'Direct messages':'Groups';
  $('tab-groups').setAttribute('aria-pressed',String(mode==='groups'));$('tab-dms').setAttribute('aria-pressed',String(mode==='dms'));renderGroups();loadGroups();
 }
 $('tab-groups').onclick=()=>switchMode('groups');$('tab-dms').onclick=()=>switchMode('dms');
