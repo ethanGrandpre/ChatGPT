@@ -1,4 +1,4 @@
-importScripts('reminder-store.js');
+importScripts('recurrence.js','reminder-store.js');
 self.addEventListener('install',()=>self.skipWaiting());
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
 // No fetch handler or asset cache: never cache/bypass the hub's private login.

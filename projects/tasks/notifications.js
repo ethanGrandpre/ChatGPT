@@ -9,12 +9,12 @@ async function api(data){
 function keyBytes(key){const raw=atob(key.replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(raw,c=>c.charCodeAt(0))}
 function sameKey(sub,key){const existing=sub?.options?.applicationServerKey;if(!existing)return true;const a=new Uint8Array(existing),b=keyBytes(key);return a.length===b.length&&a.every((v,i)=>v===b[i])}
 function buttons(){const on=!!subscription&&ready;$('#enable-notifications').hidden=on;$('#enable-notifications').disabled=busy;$('#disable-notifications').hidden=!on;$('#disable-notifications').disabled=busy;$('#test-notification').disabled=busy}
-function reminders(){const now=Date.now();return getTasks().filter(t=>t.status!=='done'&&Number.isFinite(t.remindAt)&&t.remindAt>now-86400000&&t.remindAt<=now+366*86400000).map(t=>({id:t.id,at:t.remindAt,title:t.title,due:t.due||''}))}
+function reminders(){const now=Date.now();return getTasks().filter(t=>t.status!=='done'&&Number.isFinite(t.remindAt)&&(t.remindAt>now-86400000||t.repeat&&t.repeat!=='none')&&t.remindAt>=0&&t.remindAt<=now+366*86400000).map(t=>({id:t.id,at:t.remindAt,title:t.title,due:t.due||'',...(t.repeat&&t.repeat!=='none'?{repeat:t.repeat,timeZone:t.timeZone}:{})}))}
 async function recover(error){if(error.status===409){ready=false;if(error.code==='subscription_expired'){try{await subscription?.unsubscribe()}catch{}subscription=null}buttons()}}
 async function saveDetails(items=reminders()){try{await DockTaskReminders.replace(items);detailsSaved=true}catch{detailsSaved=false}}
 async function sync(){
  if(!ready||!subscription)return;if(syncing){dirty=true;return}syncing=true;setStatus('Syncing reminders…');
- try{const items=reminders();await saveDetails(items);const result=await api({action:'schedule',reminders:items.map(({id,at})=>({id,at}))});if(ready)setStatus(`${result.scheduled} reminder${result.scheduled===1?'':'s'} scheduled on this device. ${detailsSaved?'Notifications include task names and due dates.':'Task details could not be saved; notifications will use a generic message.'} Delivery may be delayed by the OS.`)}
+ try{const items=reminders();await saveDetails(items);const result=await api({action:'schedule',reminders:items.map(({id,at,repeat,timeZone})=>({id,at,...(repeat?{repeat,timeZone}:{})}))});if(ready)setStatus(`${result.scheduled} reminder${result.scheduled===1?'':'s'} scheduled on this device. ${detailsSaved?'Notifications include task names and due dates.':'Task details could not be saved; notifications will use a generic message.'} Delivery may be delayed by the OS.`)}
  catch(e){await recover(e);setStatus('Reminders not synced: '+e.message)}
  finally{syncing=false;if(dirty){dirty=false;sync()}}
 }

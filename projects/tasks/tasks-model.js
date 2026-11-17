@@ -1,3 +1,5 @@
+import './recurrence.js';
+const recurrence=globalThis.DockTaskRecurrence;
 export const MAX_TASKS=500;
 export const VIEWS=['all','active','today','upcoming','overdue','done'];
 export const SORTS=['newest','priority','due','name'];
@@ -11,10 +13,11 @@ export function normalizeChecklist(value,{strict=false}={}){if(value===undefined
 export function normalizeTask(value,{strict=false,now=Date.now()}={}){
  if(!value||typeof value!=='object'||typeof value.id!=='string'||!value.id||value.id.length>100||typeof value.title!=='string'||!value.title.trim()||value.title.trim().length>200)throw Error('Every task needs a valid ID and a title of 1–200 characters.');
  if(strict&&value.list!==undefined&&(typeof value.list!=='string'||value.list.trim().length>40))throw Error('List names must be at most 40 characters.');
+ const repeat=recurrence.frequencies.includes(value.repeat)?value.repeat:'none';let timeZone='';if(repeat!=='none'){try{if(!Number.isFinite(value.remindAt))throw Error();timeZone=recurrence.zone(value.timeZone)}catch{if(strict)throw Error('Recurring reminders need a valid start time and time zone.')}}if(strict&&value.repeat!==undefined&&!recurrence.frequencies.includes(value.repeat))throw Error('Invalid reminder frequency.');
  const validStatus=['todo','doing','done'].includes(value.status),validPriority=['high','normal','low'].includes(value.priority),validDue=value.due===''||!!calendarDate(value.due),validNotes=typeof value.notes==='string'&&value.notes.length<=5000;
  if(strict&&(!validStatus||!validPriority||!validDue||!validNotes||!Number.isFinite(value.created)))throw Error('A task has invalid status, priority, date, notes or creation time.');
  if(strict&&value.remindAt!=null&&!Number.isFinite(value.remindAt))throw Error('A task has an invalid reminder.');
- return{id:value.id,checklist:normalizeChecklist(value.checklist,{strict}),list:listName(value.list),title:value.title.trim(),notes:validNotes?value.notes:'',status:validStatus?value.status:'todo',priority:validPriority?value.priority:'normal',due:validDue?value.due:'',remindAt:Number.isFinite(value.remindAt)?value.remindAt:null,created:Number.isFinite(value.created)?value.created:now,updated:Number.isFinite(value.updated)?value.updated:(Number.isFinite(value.created)?value.created:now),completedAt:Number.isFinite(value.completedAt)?value.completedAt:null};
+ return{id:value.id,repeat:timeZone?repeat:'none',timeZone,checklist:normalizeChecklist(value.checklist,{strict}),list:listName(value.list),title:value.title.trim(),notes:validNotes?value.notes:'',status:validStatus?value.status:'todo',priority:validPriority?value.priority:'normal',due:validDue?value.due:'',remindAt:Number.isFinite(value.remindAt)?value.remindAt:null,created:Number.isFinite(value.created)?value.created:now,updated:Number.isFinite(value.updated)?value.updated:(Number.isFinite(value.created)?value.created:now),completedAt:Number.isFinite(value.completedAt)?value.completedAt:null};
 }
 export function parseTasks(value,{strict=false}={}){if(!Array.isArray(value)||value.length>MAX_TASKS)throw Error('Choose a task array with up to 500 tasks.');const ids=new Set(),result=[];for(const valueTask of value){try{const task=normalizeTask(valueTask,{strict});if(ids.has(task.id))throw Error('Duplicate task ID');ids.add(task.id);result.push(task)}catch(e){if(strict)throw e}}return result}
 export function parseBackup(value){if(!value||![1,2].includes(value.version))throw Error('Choose a Dock Tasks backup.');return parseTasks(value.tasks,{strict:true})}
