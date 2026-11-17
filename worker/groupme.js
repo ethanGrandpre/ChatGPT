@@ -11,7 +11,7 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
  const token=typeof env.GROUPME_ACCESS_TOKEN==='string'?env.GROUPME_ACCESS_TOKEN.trim():'';
  if(!token)return failure('Add GROUPME_ACCESS_TOKEN as a Secret on the chatgpt Worker, then save and deploy.','SETUP',503);
  if(/[^\x21-\x7e]/.test(token))return failure('The saved token contains invalid characters. Copy only Your Access Token from GroupMe’s application page.','TOKEN_FORMAT',503);
- let path,body;
+ let path,body,deleteTarget;
  if(request.method==='GET'&&action==='status')path='/v3/users/me';
  else if(request.method==='GET'&&['groups','chats'].includes(action)){
   const page=Number(url.searchParams.get('page')||1);if(!Number.isInteger(page)||page<1||page>100)return failure('Invalid page.','INPUT',400);
@@ -20,6 +20,16 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
   const id=url.searchParams.get(action==='direct-messages'?'user':'group'),before=url.searchParams.get('before');
   if(!/^\d{1,30}$/.test(id||'')||(before&&!/^\d{1,40}$/.test(before)))return failure('Invalid conversation.','INPUT',400);
   path=action==='direct-messages'?'/v3/direct_messages?other_user_id='+id+'&limit=40':'/v3/groups/'+id+'/messages?limit=40';path+=(before?'&before_id='+before:'');
+ }else if(request.method==='POST'&&action==='delete'){
+  if(request.headers.get('Origin')!==url.origin||!request.headers.get('Content-Type')?.startsWith('application/json'))return failure('Request origin was rejected.','ORIGIN',403);
+  try{const raw=await request.text();if(raw.length>2000)return failure('Invalid message.','INPUT',400);deleteTarget=JSON.parse(raw);if(!/^\d{1,30}$/.test(deleteTarget?.group||'')||!/^\d{1,40}$/.test(deleteTarget?.message||''))return failure('Invalid message.','INPUT',400)}catch{return failure('Invalid message.','INPUT',400)}
+  path='/v3/conversations/'+deleteTarget.group+'/messages/'+deleteTarget.message;
+ }else if(request.method==='POST'&&action==='react'){
+  if(request.headers.get('Origin')!==url.origin||!request.headers.get('Content-Type')?.startsWith('application/json'))return failure('Request origin was rejected.','ORIGIN',403);
+  try{const raw=await request.text();if(raw.length>2000)return failure('Invalid reaction.','INPUT',400);const data=JSON.parse(raw);
+   if(!/^\d{1,30}$/.test(data?.group||'')||!/^\d{1,40}$/.test(data?.message||'')||typeof data.liked!=='boolean')return failure('Invalid reaction.','INPUT',400);
+   path='/v3/messages/'+data.group+'/'+data.message+'/'+(data.liked?'like':'unlike');body={};
+  }catch{return failure('Invalid reaction.','INPUT',400)}
  }else if(request.method==='POST'&&action==='send'){
   if(request.headers.get('Origin')!==url.origin||!request.headers.get('Content-Type')?.startsWith('application/json'))return failure('Request origin was rejected.','ORIGIN',403);
   if(Number(request.headers.get('Content-Length'))>16000)return failure('Message is too large.','INPUT',413);
@@ -29,7 +39,17 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
   path='/v3/groups/'+target+'/messages';body={message:{source_guid:body.source,text:body.text.trim()}};
  }else return failure('Unknown GroupMe action.','ROUTE',404);
  try{
-  const upstream=new Request(ORIGIN+path,{method:body?'POST':'GET',headers:{'X-Access-Token':token,Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),redirect:'manual',signal:AbortSignal.timeout(15000)});
+  const signal=AbortSignal.timeout(15000);
+  if(deleteTarget){
+   const options={headers:{'X-Access-Token':token,Accept:'application/json'},redirect:'manual',signal};
+   const account=await networkFetch(new Request(ORIGIN+'/v3/users/me',options));
+   const recent=await networkFetch(new Request(ORIGIN+'/v3/groups/'+deleteTarget.group+'/messages?limit=100',options));
+   if(!account.ok||!recent.ok)return failure('Could not verify message ownership. Nothing was deleted.','DELETE_VERIFY');
+   const user=(await account.json()).response,list=(await recent.json()).response?.messages;
+   const message=Array.isArray(list)?list.find(m=>String(m.id)===deleteTarget.message):null;
+   if(!message||!user?.id||String(message.user_id)!==String(user.id))return failure('You can delete only your own messages from the latest 100 messages. Nothing was deleted.','DELETE_NOT_OWN',403);
+  }
+  const upstream=new Request(ORIGIN+path,{method:deleteTarget?'DELETE':body?'POST':'GET',headers:{'X-Access-Token':token,Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),redirect:'manual',signal});
   const response=await networkFetch(upstream);
   if(response.status===304&&['messages','direct-messages'].includes(action))return reply({response:action==='direct-messages'?{direct_messages:[]}:{messages:[]}});
   if(!response.ok){
@@ -48,6 +68,7 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
    if(response.status===429)return failure('GroupMe is limiting requests. Wait a minute before reconnecting.','RATE_LIMIT',429);
    return failure(`GroupMe returned HTTP ${response.status}.`,response.status>=300&&response.status<400?'REDIRECT':'UPSTREAM_HTTP');
   }
+  if(['react','delete'].includes(action))return reply({response:{ok:true}});
   let data;try{data=await response.json()}catch{return failure('GroupMe returned an unreadable response.','RESPONSE_FORMAT')}
   if(!data||!Object.hasOwn(data,'response'))return failure('GroupMe returned an unexpected response.','RESPONSE_SHAPE');
   if(action==='status'){

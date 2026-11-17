@@ -10,3 +10,6 @@ Validation: groupme.test.mjs covers request validation and errors; groupme-ui.te
 
 ## Automatic updates
 The active conversation polls every 5 seconds and the visible conversation list every 30 seconds. Hidden/offline pages pause; visibility and network recovery resume checks. Sending and manual history reads prevent overlapping polls. Failures use exponential backoff capped at 60 seconds; HTTP 429 enforces at least 60 seconds of cooldown. Polling merges history and preserves drafts and reading position. This is near-live polling while the app is open, not a WebSocket or device push notification service.
+
+## Group message actions
+Heart reactions use POST /v3/messages/:group/:message/like and unlike (also present in the public Groupy client). Replies are explicitly quoted text, not native threaded replies. Delete uses DELETE /v3/conversations/:group/messages/:message (corroborated in public GroupMe clients), with explicit confirmation. The server reads the account and latest 100 group messages to verify author ownership before deleting. Older or unverifiable messages are denied locally. GroupMe can reject these actions and the client reports that response without pretending success. Native editing is not implemented because a supported Developer API endpoint could not be verified. No live messages were changed during testing.
