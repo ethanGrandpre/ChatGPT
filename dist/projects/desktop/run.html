@@ -8,21 +8,21 @@
   <link rel="stylesheet" href="../../appearance.css">
   <title>Desktop</title>
   <link rel="stylesheet" href="desktop.css">
-  <link rel="stylesheet" href="desktop-tweaks.css">
 </head>
 <body>
-  <main id="desktop" class="desktop" data-wallpaper="night">
+  <main id="desktop" class="desktop" data-wallpaper="auto">
     <section id="pc-view" class="pc-view" aria-label="Desktop workspace">
       <div class="wallpaper"></div>
       <header class="pc-topbar"><a href="index.html" class="top-brand">dock <span>desktop</span></a><div class="top-center" id="top-date"></div><div class="top-actions"><button id="pc-notifications" aria-label="Open notifications">◌</button><button id="pc-theme" aria-label="Switch theme">◐</button><span id="pc-clock" class="clock"></span></div></header>
       <nav id="pc-icons" class="pc-icons" aria-label="Pinned apps"></nav>
-      <section class="welcome-card"><div class="eyebrow">YOUR WORKSPACE</div><h1 id="welcome-name">Good day.</h1><p>Choose a project from Start, open a pinned app, or double-click a desktop icon.</p><button id="open-projects" class="primary">Browse projects <span>→</span></button></section>
+      <section class="welcome-card"><div class="eyebrow">YOUR WORKSPACE</div><h1 id="welcome-name">Good day.</h1><p>Open a pinned app, drag icons to arrange them, or press Ctrl/⌘ K to search.</p><button id="open-projects" class="primary">Browse projects <span>→</span></button></section>
       <div id="windows" class="windows" aria-label="Open application windows"></div>
       <div id="start-menu" class="start-menu" hidden>
         <div class="start-head"><strong>Start</strong><button id="close-start" aria-label="Close Start">×</button></div>
         <label class="start-search"><span>⌕</span><input id="app-search" type="search" placeholder="Search projects and apps" autocomplete="off"></label>
         <div class="start-label"><span>All apps</span><button id="show-all-projects">Browse projects</button></div>
         <div id="start-apps" class="start-apps"></div>
+        <section id="start-recent-section" class="start-recent-section" hidden><div class="start-label"><span>Recent</span><button id="clear-recent">Clear</button></div><div id="start-recent" class="start-recent"></div></section>
         <footer class="start-footer"><span id="workspace-owner">Private workspace</span><button id="start-settings">Settings</button></footer>
       </div>
       <div id="notification-panel" class="notification-panel" hidden><header><strong>Notifications</strong><button data-close-panel="notification-panel" aria-label="Close notifications">×</button></header><div id="notification-content"></div><button id="open-tasks" class="quiet-link">Open Tasks →</button></div>
