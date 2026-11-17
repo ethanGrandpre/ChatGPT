@@ -27,3 +27,7 @@
 :root[data-corners=soft] :is(.primary,.secondary,.quick-run,.search,.tool-panel,.appearance-preview,.accent-choice,dialog,textarea,select,input:not([type=checkbox]):not([type=radio])){border-radius:12px}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
 :root[data-font] :is(pre,code,textarea[spellcheck=false]){font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace}
+/* Keep hover text readable; do not fade the entire control. */
+:root[data-accent] button:not(:disabled):hover{opacity:1}
+:root[data-accent] .primary:not(:disabled):hover{filter:brightness(.96)}
+@media(pointer:coarse){:root[data-accent] .icon-button{min-width:44px;min-height:44px}:root[data-accent] :is(.primary,.secondary,.quick-run){min-height:40px}:root[data-accent] :is(.quick-favorite,.project-menu){min-height:44px}}
