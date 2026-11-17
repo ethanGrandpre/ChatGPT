@@ -75,6 +75,6 @@ The existing GitHub repository is public. Access protects the deployed site, **n
 
 Cloudflare's Git integration rebuilds on pushes to main. The optional `.github/workflows/private.yml` is an alternative: add repository secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts Edit, scoped to your account) and `CLOUDFLARE_ACCOUNT_ID`, then set repository variable `PRIVATE_HOSTING_READY=true`. Use either Cloudflare Git builds or the GitHub workflow to avoid duplicate deployments.
 
-Links and preferences are browser-local. The new hostname uses a separate browser storage area; existing preferences can be moved with a Dock JSON backup. Accounts currently control access, not cloud synchronization of preferences.
+The new hostname uses a separate browser storage area. Persistent project records and preferences now sync through the owner-only Cloudflare Worker when signed in. Existing data remains on its original hostname until you open the updated site there once to upload it; signed-in devices then share the same saved state.
 
 References: [Cloudflare Access for Workers](https://developers.cloudflare.com/workers/configuration/cloudflare-access/) · [Turnstile server verification](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).

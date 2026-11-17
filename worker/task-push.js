@@ -14,6 +14,8 @@ function advanceReminders(device,due,now){const ids=new Set(due.map(r=>r.id));de
 
 const b64=bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 async function body(request){let length=0,text='';for await(const chunk of request.body||[]){length+=chunk.length;if(length>75000)throw Error('Request too large.');text+=new TextDecoder().decode(chunk)}return JSON.parse(text)}
+async function syncBody(request){let length=0,text='',decoder=new TextDecoder('utf-8',{fatal:true});for await(const chunk of request.body||[]){length+=chunk.length;if(length>6_500_000)throw Error('Sync data is too large.');text+=decoder.decode(chunk,{stream:true})}text+=decoder.decode();return JSON.parse(text)}
+const compareVersion=(a,b)=>(a?.modifiedAt||0)-(b?.modifiedAt||0)||String(a?.clientId||'').localeCompare(String(b?.clientId||''));
 export class TaskPush {
  constructor(ctx,env){this.ctx=ctx;this.env=env;this.queue=Promise.resolve();this.ready=this.init();this.networkFetch=fetch.bind(globalThis);}
  async init(){this.devices={};this.deviceIds=await this.ctx.storage.get('deviceIds')||[];for(const id of this.deviceIds){const device=await this.ctx.storage.get('device:'+id);if(device)this.devices[id]=device}this.keys=await this.ctx.storage.get('keys')||null;this.tokens=await this.ctx.storage.get('tokens')||{};}
@@ -28,7 +30,29 @@ export class TaskPush {
  }
 
  fetch(request){return this.run(async()=>{try{
-  const url=new URL(request.url),id=url.searchParams.get('deviceId');
+  const url=new URL(request.url);
+  if(url.pathname==='/api/project-sync'){
+   if(request.method==='GET'){
+    const revision=await this.ctx.storage.get('project-sync:revision')||0,since=Number(url.searchParams.get('since'));
+    if(Number.isFinite(since)&&since===revision)return json({unchanged:true,revision});
+    return json({entries:await this.ctx.storage.get('project-sync:entries')||{},revision});
+   }
+   if(request.method!=='POST')return json({error:'Method not allowed'},405);
+   let data;try{data=await syncBody(request)}catch(error){return json({error:error.message==='Sync data is too large.'?error.message:'Invalid sync data.'},error.message==='Sync data is too large.'?413:400)}
+   if(!data||!data.entries||typeof data.entries!=='object'||Array.isArray(data.entries)||Object.keys(data.entries).length>100)return json({error:'Invalid sync data.'},400);
+   const entries=await this.ctx.storage.get('project-sync:entries')||{};let changed=false;
+   for(const [key,item] of Object.entries(data.entries)){
+    if(!/^dock-[a-zA-Z0-9._:-]{1,120}$/.test(key)||key==='dock-tasks-device-v1'||key.startsWith('dock-sync-')||!item||!(typeof item.value==='string'||item.value===null)||item.value?.length>300000||!Number.isFinite(item.modifiedAt)||item.modifiedAt<0||typeof item.clientId!=='string'||item.clientId.length>100)return json({error:'Invalid sync entry.'},400);
+    const incoming={value:item.value,modifiedAt:Math.min(Math.round(item.modifiedAt),Date.now()+300000),clientId:item.clientId};
+    if(compareVersion(incoming,entries[key])>0){entries[key]=incoming;changed=true}
+   }
+   const total=new TextEncoder().encode(JSON.stringify(entries)).length;
+   if(total>6_000_000)return json({error:'Sync data exceeds the workspace limit.'},413);
+   let revision=await this.ctx.storage.get('project-sync:revision')||0;
+   if(changed){await this.ctx.storage.put('project-sync:entries',entries);revision++;await this.ctx.storage.put('project-sync:revision',revision)}
+   return json({entries,revision});
+  }
+  const id=url.searchParams.get('deviceId');
   if(request.method==='GET'){const keys=await this.ensureKeys(),device=this.devices[id];return json({configured:true,publicKey:keys.publicKey,subscribed:!!device,scheduled:device?.reminders.length||0,lastAccepted:device?.lastAccepted||null,lastError:device?.lastError||null});}
   if(request.method!=='POST')return json({error:'Method not allowed'},405);
   const data=await body(request);if(!data||typeof data.deviceId!=='string'||! /^[a-f0-9-]{36}$/i.test(data.deviceId))throw Error('Invalid device identifier.');

@@ -104,6 +104,14 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       const objectId=env.TASK_PUSH.idFromName(identity.email.toLowerCase());
       return env.TASK_PUSH.get(objectId).fetch(request);
     }
+    if (url.pathname === '/api/project-sync') {
+      if (botRequired && !(await verifiedSession(request, env, identity))) return reply('Verification required.',403);
+      if (!env.TASK_PUSH) return reply(JSON.stringify({error:'Sync storage is not configured in this deployment.'}),503,{'Content-Type':'application/json'});
+      if (!['GET','POST'].includes(request.method)) return reply('Method not allowed.',405,{Allow:'GET, POST'});
+      if (request.method==='POST' && (request.headers.get('Origin')!==url.origin || !request.headers.get('Content-Type')?.startsWith('application/json'))) return reply('Invalid origin or content type.',403);
+      const objectId=env.TASK_PUSH.idFromName(identity.email.toLowerCase());
+      return env.TASK_PUSH.get(objectId).fetch(request);
+    }
     if (!['GET', 'HEAD'].includes(request.method)) return reply('Method not allowed.', 405, { Allow: 'GET, HEAD' });
     if (botRequired && !(await verifiedSession(request, env, identity))) {
       if (request.headers.get('Accept')?.includes('text/html')) return challengePage(env, request);

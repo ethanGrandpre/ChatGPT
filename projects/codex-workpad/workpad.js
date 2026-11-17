@@ -141,4 +141,14 @@ noteInput.addEventListener('keydown', (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') $('add-note').click();
 });
 $('theme').addEventListener('click', () => window.DockAppearance?.toggleTheme());
+window.addEventListener('dock-project-sync-change', (event) => {
+  if (event.detail?.key !== KEY) return;
+  const active = document.activeElement;
+  const instructionDraft = active === instructionInput ? instructionInput.value : null;
+  state = readState();
+  if (instructionDraft !== null) state.instructions = instructionDraft;
+  if (active && notesEl.contains(active)) return;
+  render();
+  if (instructionDraft !== null) instructionInput.value = instructionDraft;
+});
 render();
