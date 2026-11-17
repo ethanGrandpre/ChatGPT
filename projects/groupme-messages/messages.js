@@ -1,3 +1,11 @@
+const TEXT_SIZE_KEY='dock-groupme-text-size-v1';
+function normalizedTextSize(value){const n=Number(value);return Number.isFinite(n)&&n>=12&&n<=24?Math.round(n):14}
+function applyTextSize(value){const size=normalizedTextSize(value);$('text-size').value=String(size);$('text-size-value').textContent=size+'px';$('messages').style.setProperty('--message-text-size',size+'px');$('text').style.setProperty('--message-text-size',size+'px')}
+function loadTextSize(){try{applyTextSize(localStorage.getItem(TEXT_SIZE_KEY))}catch{applyTextSize(14)}}
+const emojiBase=String.raw`(?!(?:\p{Emoji_Modifier}|\p{Regional_Indicator}))[\p{Extended_Pictographic}\p{Emoji_Presentation}]\uFE0F?\p{Emoji_Modifier}?(?:[\u{E0020}-\u{E007E}]+\u{E007F})?`;
+const emojiAtom=String.raw`(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|${emojiBase})`;
+const emojiOnlyPattern=new RegExp(String.raw`^(?:${emojiAtom}(?:\u200D${emojiAtom})*\s*)+$`,'u');
+function isEmojiOnly(value){return emojiOnlyPattern.test(String(value||'').trim())}
 const $=id=>document.getElementById(id);let mode='groups',groups=[],page=1,current=null,messages=[],generation=0,busy=false,source=crypto.randomUUID(),lastText='';
 let ownerId='',replyTarget=null;const deletedMessages=new Set();
 let connected=false,reading=0,listing=0,retryAt=0,liveTimer,lastList=0,lastAttempt=0,liveDelay=5000,stopped=false;
@@ -24,7 +32,7 @@ async function loadGroups(more=false,quiet=false){
  }catch(e){if(listMode!==mode)return;$('status').dataset.error='true';status(e.message);$('setup').hidden=false;return false}
  finally{listing--;if(listMode!==mode)return;$('refresh-groups').disabled=false;$('refresh-groups').textContent='Connect / refresh';$('more-groups').disabled=false}
 }
-function renderMessages(){const root=$('messages');root.replaceChildren();for(const message of [...messages].filter(m=>!deletedMessages.has(current?.id+':'+m.id)).sort((a,b)=>a.created_at-b.created_at)){const row=document.createElement('article');row.className='message';const header=document.createElement('header'),name=document.createElement('strong'),time=document.createElement('time');name.textContent=message.name||'Group member';const date=new Date(message.created_at*1000);time.textContent=Number.isNaN(date.valueOf())?'':date.toLocaleString();header.append(name,time);const text=document.createElement('p');text.textContent=message.text||'';row.append(header,text);if(message.attachments?.length){const note=document.createElement('small');note.textContent='Attachments · view them in GroupMe';row.append(note)}if(mode==='groups'){
+function renderMessages(){const root=$('messages');root.replaceChildren();for(const message of [...messages].filter(m=>!deletedMessages.has(current?.id+':'+m.id)).sort((a,b)=>a.created_at-b.created_at)){const row=document.createElement('article');row.className='message';const header=document.createElement('header'),name=document.createElement('strong'),time=document.createElement('time');name.textContent=message.name||'Group member';const date=new Date(message.created_at*1000);time.textContent=Number.isNaN(date.valueOf())?'':date.toLocaleString();header.append(name,time);const text=document.createElement('p');text.textContent=message.text||'';text.className=isEmojiOnly(message.text)?'emoji-only':'';row.append(header,text);if(message.attachments?.length){const note=document.createElement('small');note.textContent='Attachments · view them in GroupMe';row.append(note)}if(mode==='groups'){
  const actions=document.createElement('div');actions.className='message-actions';const favorites=Array.isArray(message.favorited_by)?message.favorited_by.map(String):[],liked=favorites.includes(ownerId);
  const heart=document.createElement('button');heart.type='button';heart.textContent=(liked?'♥':'♡')+' '+favorites.length;heart.setAttribute('aria-label',liked?'Remove heart reaction':'React with a heart');heart.setAttribute('aria-pressed',String(liked));heart.onclick=()=>reactToMessage(message,liked);
  const reply=document.createElement('button');reply.type='button';reply.textContent='Reply';reply.onclick=()=>{if(busy)return;replyTarget={id:message.id,name:message.name||'Member',text:message.text||'[Attachment]'};$('reply-bar').hidden=false;$('reply-preview').textContent='Quoted reply to '+replyTarget.name+': '+replyTarget.text.slice(0,120);$('text').maxLength=1000-replyPrefix().length;$('text').focus()};actions.append(heart,reply);
@@ -110,3 +118,7 @@ async function deleteMessage(message){
  try{await api('delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group,message:String(message.id)})});deletedMessages.add(group+':'+message.id);if(replyTarget?.id===message.id)clearReply();renderMessages();status('Message deleted from GroupMe.')}
  catch(e){status(e.message+' Nothing was removed from this view.')}finally{busy=false}
 }
+
+loadTextSize();
+$('text-size').oninput=()=>{const size=normalizedTextSize($('text-size').value);applyTextSize(size);try{localStorage.setItem(TEXT_SIZE_KEY,String(size))}catch{status('Text size changed for this session; browser storage is unavailable.')}};
+window.addEventListener('storage',event=>{if(event.key===TEXT_SIZE_KEY||event.key===null)loadTextSize()});
