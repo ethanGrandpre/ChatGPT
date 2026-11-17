@@ -41,6 +41,12 @@ async function loadMessages(older=false,live=false){
  }catch(e){if(version===generation){status(e.message);$('status').dataset.error='true'}return false}
  finally{reading--;if(version===generation&&!live){$('refresh').disabled=false;$('older').disabled=false}}
 }
+$('text').onkeydown=event=>{
+ if(event.key!=='Enter'||event.shiftKey||event.isComposing||event.keyCode===229)return;
+ event.preventDefault();
+ if(event.repeat||busy||!current||mode==='dms'||!$('text').value.trim()||$('send').disabled)return;
+ $('compose').requestSubmit();
+};
 $('compose').onsubmit=async event=>{
  event.preventDefault();if(mode==='dms'){$('send-status').textContent='DMs are read-only because GroupMe does not allow DM sending through its Developer API.';return}const text=$('text').value.trim();if(!text||!current||busy)return;
  if(text!==lastText){source=crypto.randomUUID();lastText=text}
