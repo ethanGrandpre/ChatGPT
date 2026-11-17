@@ -19,3 +19,6 @@ The header slider adjusts message and composer text from 12px to 24px. Its dock-
 
 ## Reaction confirmation
 Like/unlike requests use an empty POST body. After acknowledgement, the Worker reads the GroupMe account and latest 100 group messages, and confirms that the message favorited_by list matches the requested state. The client uses only this returned server state, never adds local-only favorites. If read-back fails or the state has not propagated, REACTION_UNCONFIRMED is reported. Older messages outside that window cannot be verified this way. Arbitrary emoji reaction routes could not be verified; this integration exposes only heart likes.
+
+## Phone layout
+At 650px and below, the app uses a conversation list and a separate full-height chat view. Chats returns to the list without clearing the active draft; selecting that same conversation resumes it. The visual viewport drives available height while the keyboard is open. Touch targets, safe areas, wrapping metadata, and compact landscape/keyboard layouts keep controls usable. Desktop retains both panels.

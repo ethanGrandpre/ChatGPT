@@ -9,7 +9,7 @@ function isEmojiOnly(value){return emojiOnlyPattern.test(String(value||'').trim(
 const $=id=>document.getElementById(id);let mode='groups',groups=[],page=1,current=null,messages=[],generation=0,busy=false,source=crypto.randomUUID(),lastText='';
 let ownerId='',replyTarget=null;const deletedMessages=new Set();
 let connected=false,reading=0,listing=0,retryAt=0,liveTimer,lastList=0,lastAttempt=0,liveDelay=5000,stopped=false;
-const status=text=>$('status').textContent=text;
+const status=text=>{$('status').textContent=text;$('list-status').textContent=text};
 async function api(action,options={}){
  let response;try{response=await fetch('/api/groupme/'+action,{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(22000),...options})}catch{throw Error('Connection to Dock failed or timed out. Check your connection and reconnect.')}
  let data;try{data=await response.json()}catch{throw Error('Dock returned a sign-in page or unreadable response. Sign into Dock again and reload.')}
@@ -19,7 +19,7 @@ async function api(action,options={}){
  if(!response.ok)throw Error((data.error||'GroupMe request failed.')+' ['+(data.code||response.status)+']');
  return data.response;
 }
-function renderGroups(){const q=$('search').value.toLowerCase();$('groups').replaceChildren();for(const group of groups.filter(g=>g.name.toLowerCase().includes(q))){const button=document.createElement('button');button.textContent=group.name;button.setAttribute('aria-pressed',String(current?.id===group.id));button.onclick=()=>{if(busy)return;if(($('text').value||replyTarget)&&!confirm('Discard your unsent message and switch conversations?'))return;current=group;clearReply();$('send-status').textContent='';source=crypto.randomUUID();lastText='';generation++;messages=[];$('text').value='';$('compose').hidden=mode==='dms';$('dm-note').hidden=mode!=='dms';$('title').textContent=group.name;$('refresh').disabled=false;$('text').disabled=false;$('send').disabled=false;renderGroups();loadMessages()};$('groups').append(button)}}
+function renderGroups(){const q=$('search').value.toLowerCase();$('groups').replaceChildren();for(const group of groups.filter(g=>g.name.toLowerCase().includes(q))){const button=document.createElement('button');button.textContent=group.name;button.setAttribute('aria-pressed',String(current?.id===group.id));button.onclick=()=>{if(busy)return;if(current?.id===group.id){$('chat-app').dataset.panel='conversation';return}if(($('text').value||replyTarget)&&!confirm('Discard your unsent message and switch conversations?'))return;current=group;$('chat-app').dataset.panel='conversation';clearReply();$('send-status').textContent='';source=crypto.randomUUID();lastText='';generation++;messages=[];$('text').value='';$('compose').hidden=mode==='dms';$('dm-note').hidden=mode!=='dms';$('title').textContent=group.name;$('refresh').disabled=false;$('text').disabled=false;$('send').disabled=false;renderGroups();loadMessages()};$('groups').append(button)}}
 async function loadGroups(more=false,quiet=false){
  if(busy)return false;listing++;const listMode=mode;$('refresh-groups').disabled=true;$('more-groups').disabled=true;$('refresh-groups').textContent='Connecting…';$('status').dataset.error='false';
  if(!quiet)status('Checking your saved GroupMe account…');
@@ -74,7 +74,7 @@ $('compose').onsubmit=async event=>{
 };
 function switchMode(next){
  if(busy||mode===next)return;if(($('text').value||replyTarget)&&!confirm('Discard your unsent message and switch conversations?'))return;
- mode=next;clearReply();$('dm-note').hidden=mode!=='dms';$('send-status').textContent='';generation++;current=null;messages=[];groups=[];page=1;$('text').value='';$('compose').hidden=true;$('messages').replaceChildren();$('title').textContent='Choose a conversation';$('refresh').disabled=true;$('older').hidden=true;$('more-groups').hidden=true;$('search').value='';$('list-title').textContent=mode==='dms'?'Direct messages':'Groups';
+ mode=next;$('chat-app').dataset.panel='list';clearReply();$('dm-note').hidden=mode!=='dms';$('send-status').textContent='';generation++;current=null;messages=[];groups=[];page=1;$('text').value='';$('compose').hidden=true;$('messages').replaceChildren();$('title').textContent='Choose a conversation';$('refresh').disabled=true;$('older').hidden=true;$('more-groups').hidden=true;$('search').value='';$('list-title').textContent=mode==='dms'?'Direct messages':'Groups';
  $('tab-groups').setAttribute('aria-pressed',String(mode==='groups'));$('tab-dms').setAttribute('aria-pressed',String(mode==='dms'));renderGroups();loadGroups();
 }
 $('tab-groups').onclick=()=>switchMode('groups');$('tab-dms').onclick=()=>switchMode('dms');
@@ -123,3 +123,7 @@ async function deleteMessage(message){
 loadTextSize();
 $('text-size').oninput=()=>{const size=normalizedTextSize($('text-size').value);applyTextSize(size);try{localStorage.setItem(TEXT_SIZE_KEY,String(size))}catch{status('Text size changed for this session; browser storage is unavailable.')}};
 window.addEventListener('storage',event=>{if(event.key===TEXT_SIZE_KEY||event.key===null)loadTextSize()});
+
+$('conversation-back').onclick=()=>{$('chat-app').dataset.panel='list';$('list-title').focus({preventScroll:true})};
+function fitChatViewport(){if(window.visualViewport)$('chat-app').style.setProperty('--chat-viewport-height',Math.round(window.visualViewport.height)+'px')}
+window.visualViewport?.addEventListener('resize',fitChatViewport);window.addEventListener('resize',fitChatViewport);fitChatViewport();
