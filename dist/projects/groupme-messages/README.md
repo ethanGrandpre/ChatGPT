@@ -16,3 +16,6 @@ Heart reactions use POST /v3/messages/:group/:message/like and unlike (also pres
 
 ## Text display
 The header slider adjusts message and composer text from 12px to 24px. Its dock-groupme-text-size-v1 preference uses private project sync. Emoji-only messages are displayed at 2.3 times the selected size; Unicode compound emoji, flags, skin tones, and keycaps are recognized, while ordinary text, punctuation, and plain numbers keep the selected size.
+
+## Reaction confirmation
+Like/unlike requests use an empty POST body. After acknowledgement, the Worker reads the GroupMe account and latest 100 group messages, and confirms that the message favorited_by list matches the requested state. The client uses only this returned server state, never adds local-only favorites. If read-back fails or the state has not propagated, REACTION_UNCONFIRMED is reported. Older messages outside that window cannot be verified this way. Arbitrary emoji reaction routes could not be verified; this integration exposes only heart likes.

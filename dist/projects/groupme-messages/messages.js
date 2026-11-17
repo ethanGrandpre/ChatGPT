@@ -106,9 +106,10 @@ function clearReply(){replyTarget=null;$('reply-bar').hidden=true;$('text').maxL
 $('cancel-reply').onclick=clearReply;
 async function reactToMessage(message,liked){
  if(busy||mode!=='groups'||!current)return;busy=true;const id=current.id;
- try{await api('react',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group:id,message:String(message.id),liked:!liked})});
-  const favorites=(Array.isArray(message.favorited_by)?message.favorited_by:[]).map(String);message.favorited_by=liked?favorites.filter(id=>id!==ownerId):[...new Set([...favorites,ownerId])];
-  const top=$('messages').scrollTop;renderMessages();$('messages').scrollTop=top;status(liked?'Heart removed.':'Heart added.');
+ try{const result=await api('react',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group:id,message:String(message.id),liked:!liked})});
+  if(result?.confirmed!==true||String(result.message_id)!==String(message.id)||!Array.isArray(result.favorited_by))throw Error('The server did not confirm the saved GroupMe reaction. Reload after deployment.');
+  messages=messages.map(m=>String(m.id)===String(message.id)?{...m,favorited_by:result.favorited_by}:m);
+  const top=$('messages').scrollTop;renderMessages();$('messages').scrollTop=top;status(liked?'Heart removal confirmed by GroupMe.':'Heart confirmed by GroupMe.');
  }catch(e){status(e.message)}finally{busy=false}
 }
 
