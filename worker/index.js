@@ -51,7 +51,7 @@ function challengePage(env, request) {
   return reply(html, 200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}' https://challenges.cloudflare.com; style-src 'nonce-${nonce}'; frame-src https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; base-uri 'none'; form-action 'self'; frame-ancestors 'none'` });
 }
 
-export function createHandler({ identityVerifier = verifyIdentity, networkFetch = fetch } = {}) {
+export function createHandler({ identityVerifier = verifyIdentity, networkFetch = fetch.bind(globalThis) } = {}) {
   return async function handle(request, env, ctx) {
     const config = configuration(env);
     let identity;

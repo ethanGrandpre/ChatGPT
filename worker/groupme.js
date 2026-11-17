@@ -1,5 +1,5 @@
 // Called only after Dock owner authentication and optional bot verification.
-export async function groupme(request, env, networkFetch=fetch) {
+export async function groupme(request, env, networkFetch=fetch.bind(globalThis)) {
  const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
  const url=new URL(request.url),action=url.pathname.slice('/api/groupme/'.length);
  if(!['GET','POST'].includes(request.method))return json({error:'Method not allowed.'},405);
@@ -16,7 +16,7 @@ export async function groupme(request, env, networkFetch=fetch) {
  }
  const accessToken=typeof env.GROUPME_ACCESS_TOKEN==='string'?env.GROUPME_ACCESS_TOKEN.trim():'';
  if(!accessToken)return json({error:'The running Worker has no GROUPME_ACCESS_TOKEN secret. Save and deploy that secret on chatgpt, then refresh. [GM_CONFIG_MISSING]'},503);
- if(/[\r\n]/.test(accessToken))return json({error:'The GroupMe secret contains line breaks. Replace it with the copied access token only. [GM_CONFIG_FORMAT]'},503);
+ if(/[^\x21-\x7e]/.test(accessToken))return json({error:'The GroupMe secret contains invalid whitespace or non-ASCII characters. Replace it with the copied access token only. [GM_CONFIG_FORMAT]'},503);
  let path,body;
  const id=url.searchParams.get('group');
  if(request.method==='GET'&&action==='groups')path='/groups?per_page=100&page='+Math.min(100,Math.max(1,Number(url.searchParams.get('page'))||1));
@@ -33,6 +33,8 @@ export async function groupme(request, env, networkFetch=fetch) {
   const response=await networkFetch('https://api.groupme.com/v3'+path,{method:body?'POST':'GET',headers:{'X-Access-Token':accessToken,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(15000)});
   if(response.status===304)return json({response:{messages:[]}});
   if(!response.ok)return json({error:response.status===401?'GroupMe rejected the access token. Copy Your Access Token from the application details, not the Client ID, and replace the Worker secret. [GM_TOKEN_REJECTED]':response.status===429?'GroupMe rate limit reached. Wait before refreshing. [GM_RATE_LIMIT]':`GroupMe returned HTTP ${response.status}. Refresh before retrying a send. [GM_UPSTREAM]`},response.status===429?429:502);
-  const data=await response.json();return json({response:data.response});
- }catch{return json({error:'Could not reach GroupMe or read its response. Refresh before retrying a send. [GM_NETWORK]'},502)}
+  let data;try{data=await response.json()}catch{return json({error:'GroupMe returned a non-JSON response. [GM_RESPONSE_FORMAT]'},502)}
+ if(!data||!Object.hasOwn(data,'response'))return json({error:'GroupMe returned an unexpected response structure. [GM_RESPONSE_SHAPE]'},502);
+ return json({response:data.response});
+ }catch(error){const timeout=['TimeoutError','AbortError'].includes(error?.name);return json({error:timeout?'GroupMe did not respond within 15 seconds. [GM_TIMEOUT]':error?.message?.includes('Illegal invocation')?'The Worker could not invoke its network client. [GM_FETCH_BINDING]':'The Worker could not connect to GroupMe. [GM_TRANSPORT]'},502)}
 }
