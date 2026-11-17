@@ -8,7 +8,7 @@ async function api(data){
 }
 function keyBytes(key){const raw=atob(key.replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(raw,c=>c.charCodeAt(0))}
 function sameKey(sub,key){const existing=sub?.options?.applicationServerKey;if(!existing)return true;const a=new Uint8Array(existing),b=keyBytes(key);return a.length===b.length&&a.every((v,i)=>v===b[i])}
-function buttons(){const on=!!subscription&&ready;$('#enable-notifications').hidden=on;$('#enable-notifications').disabled=busy;$('#disable-notifications').hidden=!on;$('#disable-notifications').disabled=busy;$('#test-notification').disabled=busy||!on}
+function buttons(){const on=!!subscription&&ready;$('#enable-notifications').hidden=on;$('#enable-notifications').disabled=busy;$('#disable-notifications').hidden=!on;$('#disable-notifications').disabled=busy;$('#test-notification').disabled=busy}
 function reminders(){const now=Date.now();return getTasks().filter(t=>t.status!=='done'&&Number.isFinite(t.remindAt)&&t.remindAt>now-86400000&&t.remindAt<=now+366*86400000).map(t=>({id:t.id,at:t.remindAt}))}
 async function recover(error){if(error.status===409){ready=false;if(error.code==='subscription_expired'){try{await subscription?.unsubscribe()}catch{}subscription=null}buttons()}}
 async function sync(){
@@ -23,9 +23,9 @@ function activated(){let timer;return Promise.race([navigator.serviceWorker.read
 export async function initNotifications(readTasks){
  getTasks=readTasks;
  const supported='serviceWorker'in navigator&&'PushManager'in window&&'Notification'in window&&window.isSecureContext;
- if(!supported){setStatus('Web Push is unavailable here. Open this page in Android Chrome (not an in-app browser). On iPhone/iPad, add Tasks to the Home Screen first.');$('#enable-notifications').disabled=true;return}
- try{deviceId=localStorage.getItem(DEVICE);if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem(DEVICE,deviceId)}}catch{setStatus('Browser storage is unavailable; device notifications cannot be configured.');$('#enable-notifications').disabled=true;return}
- $('#enable-notifications').onclick=()=>action(async()=>{
+ if(!supported){setStatus('Web Push is unavailable here. Open this page in Android Chrome (not an in-app browser). On iPhone/iPad, add Tasks to the Home Screen first.');$('#enable-notifications').disabled=true;$('#test-notification').disabled=true;return}
+ try{deviceId=localStorage.getItem(DEVICE);if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem(DEVICE,deviceId)}}catch{setStatus('Browser storage is unavailable; device notifications cannot be configured.');$('#enable-notifications').disabled=true;$('#test-notification').disabled=true;return}
+ async function enable(){
   // Run directly from the click, before any network await, for mobile permission rules.
   const permission=await Notification.requestPermission();if(permission!=='granted')throw Error(permission==='denied'?'Permission blocked. Allow notifications for this site in browser settings and allow Chrome notifications in Android Settings.':'Permission was not granted. Tap Enable notifications to try again.');
   setStatus('Connecting this device…');registration=await navigator.serviceWorker.register('sw.js',{scope:'./',updateViaCache:'none'});await activated();const config=await api();
@@ -33,11 +33,14 @@ export async function initNotifications(readTasks){
   if(subscription&&!sameKey(subscription,config.publicKey)){await subscription.unsubscribe();subscription=null}
   if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(config.publicKey)});
   await api({action:'subscribe',subscription:subscription.toJSON()});ready=true;await sync();
- });
+ }
+ $('#enable-notifications').onclick=()=>action(enable);
  $('#disable-notifications').onclick=()=>action(async()=>{
   await api({action:'disable'});ready=false;clearTimeout(syncTimer);if(subscription)await subscription.unsubscribe();subscription=null;setStatus('Device reminders disabled. Notification permission can also be changed in your browser settings.');
  });
  $('#test-notification').onclick=()=>action(async()=>{
+  if(!ready||!subscription)await enable();
+  if(!ready)throw Error('Connect notifications on this device before sending a test.');
   setStatus('Sending test notification…');const result=await api({action:'test'});setStatus(result.message+' Check your phone’s notification tray.');
  });
  window.addEventListener('online',()=>{if(!busy)sync()});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ready&&!busy)sync()});
@@ -49,8 +52,8 @@ export async function initNotifications(readTasks){
    const config=await api();if(start!==generation)return;registration=reg;subscription=sub;
    ready=config.subscribed&&sameKey(sub,config.publicKey);buttons();
    if(ready){await sync();return}
-   setStatus('This device needs to reconnect. Tap Enable notifications, then Send test.');return;
+   setStatus('This device needs to reconnect. Tap Enable notifications, then Test notification.');return;
   }
-  setStatus(Notification.permission==='denied'?'Notifications are blocked. Allow this site in browser settings and allow the browser’s notifications in Android Settings.':'Enable notifications on each device, then Send test and check its notification tray.');
+  setStatus(Notification.permission==='denied'?'Notifications are blocked. Allow this site in browser settings and allow the browser’s notifications in Android Settings.':'Tap Test notification to send a real push to this device. First use asks for notification permission.');
  }catch(e){if(start===generation)setStatus('Notifications unavailable: '+e.message)}finally{buttons()}
 }
