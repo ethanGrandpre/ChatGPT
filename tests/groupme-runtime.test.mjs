@@ -6,12 +6,14 @@ test('GroupMe account, group, history and send routes execute in Cloudflare runt
   calls++;const url=new URL(request.url);assert.equal(url.origin,'https://api.groupme.com');assert.equal(request.headers.get('X-Access-Token'),'runtime-test-token');
   if(url.pathname==='/v3/users/me')return Response.json({response:{id:'1',name:'Runtime User'}});
   if(url.pathname==='/v3/groups')return Response.json({response:[{id:'123',name:'Runtime Group'}]});
+  if(url.pathname==='/v3/chats')return Response.json({response:[{other_user:{id:'456',name:'DM Friend'}}]});
+  if(url.pathname==='/v3/direct_messages'){if(request.method==='POST'){assert.deepEqual(await request.json(),{direct_message:{source_guid:'direct-runtime',recipient_id:'456',text:'Simulated direct message'}});return Response.json({response:{direct_message:{id:'3'}}})}return Response.json({response:{direct_messages:[{id:'1',text:'DM test',created_at:1}]}})}
   if(request.method==='POST'){assert.deepEqual(await request.json(),{message:{source_guid:'runtime-guid',text:'Simulated message'}});return Response.json({response:{message:{id:'2'}}})}
   return Response.json({response:{messages:[{id:'1',name:'Member',text:'Test',created_at:1}]}});
  }}));
  try{
   const denied=await mf.dispatchFetch('https://dock.test/api/groupme/status');assert.equal(denied.status,403);assert.equal(calls,0);
-  for(const action of ['status','groups','messages?group=123']){const r=await mf.dispatchFetch('https://dock.test/api/groupme/'+action,{headers:{'X-Test-Owner':'owner@test'}});assert.equal(r.status,200,await r.clone().text());assert.equal((await r.json()).release,'groupme-rebuild-1')}
-  const sent=await mf.dispatchFetch('https://dock.test/api/groupme/send',{method:'POST',headers:{'X-Test-Owner':'owner@test',Origin:'https://dock.test','Content-Type':'application/json'},body:JSON.stringify({group:'123',text:'Simulated message',source:'runtime-guid'})});assert.equal(sent.status,200,await sent.clone().text());assert.equal(calls,4);
+  for(const action of ['status','groups','messages?group=123','chats','direct-messages?user=456']){const r=await mf.dispatchFetch('https://dock.test/api/groupme/'+action,{headers:{'X-Test-Owner':'owner@test'}});assert.equal(r.status,200,await r.clone().text());assert.equal((await r.json()).release,'groupme-dms-1')}
+  const sent=await mf.dispatchFetch('https://dock.test/api/groupme/send',{method:'POST',headers:{'X-Test-Owner':'owner@test',Origin:'https://dock.test','Content-Type':'application/json'},body:JSON.stringify({group:'123',text:'Simulated message',source:'runtime-guid'})});assert.equal(sent.status,200,await sent.clone().text());const direct=await mf.dispatchFetch('https://dock.test/api/groupme/send-direct',{method:'POST',headers:{'X-Test-Owner':'owner@test',Origin:'https://dock.test','Content-Type':'application/json'},body:JSON.stringify({user:'456',text:'Simulated direct message',source:'direct-runtime'})});assert.equal(direct.status,200,await direct.clone().text());assert.equal(calls,7);
  }finally{await mf.dispose()}
 });
