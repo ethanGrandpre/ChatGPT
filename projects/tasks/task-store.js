@@ -10,6 +10,6 @@ export function mergeTaskChanges(base,next,latest){
  if(current.size>MAX_TASKS)throw Error('This change would exceed the 500-task limit.');
  return parseTasks([...current.values()],{strict:true});
 }
-export function sameTask(a,b){return fingerprint(a)===fingerprint(b)}
+export function sameTask(a,b){return a===b||fingerprint(a)===fingerprint(b)}
 
 export function taskPatch(before,after){const a=new Map(before.map(t=>[t.id,t])),b=new Map(after.map(t=>[t.id,t]));const ids=[...new Set([...a.keys(),...b.keys()])].filter(id=>!sameTask(a.get(id),b.get(id)));return{before:ids.filter(id=>a.has(id)).map(id=>a.get(id)),after:ids.filter(id=>b.has(id)).map(id=>b.get(id))}}
