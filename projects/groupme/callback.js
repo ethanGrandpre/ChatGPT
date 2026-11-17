@@ -3,6 +3,9 @@
  const query=new URLSearchParams(location.search),fragment=new URLSearchParams(location.hash.slice(1));
  let token=fragment.get('access_token')||query.get('access_token');
  const state=fragment.get('state')||query.get('state'),error=fragment.get('error')||query.get('error');
+ const known=['access_token','code','error','state','token'];
+ const flags=params=>known.filter(key=>params.has(key)).join(', ')||'none';
+ const diagnostic=`Return check: query fields: ${flags(query)}; fragment fields: ${flags(fragment)}.`;
  history.replaceState(null,'',location.pathname);
  let pending;try{pending=JSON.parse(sessionStorage.getItem('groupme-oauth-state')||'null');sessionStorage.removeItem('groupme-oauth-state')}catch{}
  const fresh=pending&&typeof pending.state==='string'&&Number.isFinite(pending.created)&&Date.now()-pending.created>=0&&Date.now()-pending.created<15*60*1000;
@@ -10,7 +13,7 @@
  let reason=error?'GroupMe declined authorization.':!token?'GroupMe returned no access token.':!fresh?'This tab’s authorization session is missing or expired.':state&&state!==pending.state?'The returned authorization state did not match.':'The returned token is invalid.';
  if(!valid)token=null;
  document.addEventListener('DOMContentLoaded',async()=>{
-  const status=document.getElementById('status');if(!valid){status.textContent=reason+' Start again from Connect GroupMe in this tab.';return}
+  const status=document.getElementById('status');if(!valid){status.textContent=reason+' '+diagnostic+' Start again from Connect GroupMe in this tab.';return}
   const reveal=()=>{document.getElementById('verify').hidden=true;document.getElementById('result').hidden=false;status.textContent='Account confirmed. Finish the Cloudflare secret setup below.'};
   document.getElementById('copy').onclick=async()=>{try{await navigator.clipboard.writeText(token);document.getElementById('copy-status').textContent='Copied. Paste directly into the Cloudflare secret.'}catch{document.getElementById('copy-status').textContent='Clipboard access was blocked. Allow clipboard permission and try again.'}};
   document.getElementById('clear').onclick=()=>{token=null;document.getElementById('result').hidden=true;status.textContent='Token cleared from this page.'};
