@@ -1,5 +1,5 @@
 const DEVICE='dock-tasks-device-v1';
-let getTasks,registration,subscription,deviceId,syncTimer,syncing=false,dirty=false,ready=false,busy=false,generation=0,detailsSaved=true;
+let getTasks,registration,subscription,deviceId,syncTimer,syncing=false,dirty=false,forceSync=false,ready=false,busy=false,generation=0,detailsSaved=true,detailsSignature='',detailsJob=Promise.resolve(),scheduleSignature='',scheduleAt=0,scheduleCount=0;
 const $=s=>document.querySelector(s),setStatus=t=>$('#notification-status').textContent=t;
 async function api(data){
  const response=await fetch('/api/tasks-push?deviceId='+encodeURIComponent(deviceId||''),data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,deviceId})}:{cache:'no-store'});
@@ -11,12 +11,16 @@ function sameKey(sub,key){const existing=sub?.options?.applicationServerKey;if(!
 function buttons(){const on=!!subscription&&ready;$('#enable-notifications').hidden=on;$('#enable-notifications').disabled=busy;$('#disable-notifications').hidden=!on;$('#disable-notifications').disabled=busy;$('#test-notification').disabled=busy}
 function reminders(){const now=Date.now();return getTasks().filter(t=>t.status!=='done'&&Number.isFinite(t.remindAt)&&(t.remindAt>now-86400000||t.repeat&&t.repeat!=='none')&&t.remindAt>=0&&t.remindAt<=now+366*86400000).map(t=>({id:t.id,at:t.remindAt,title:t.title,due:t.due||'',...(t.repeat&&t.repeat!=='none'?{repeat:t.repeat,timeZone:t.timeZone}:{})}))}
 async function recover(error){if(error.status===409){ready=false;if(error.code==='subscription_expired'){try{await subscription?.unsubscribe()}catch{}subscription=null}buttons()}}
-async function saveDetails(items=reminders()){try{await DockTaskReminders.replace(items);detailsSaved=true}catch{detailsSaved=false}}
-async function sync(){
- if(!ready||!subscription)return;if(syncing){dirty=true;return}syncing=true;setStatus('Syncing reminders…');
- try{const items=reminders();await saveDetails(items);const result=await api({action:'schedule',reminders:items.map(({id,at,repeat,timeZone})=>({id,at,...(repeat?{repeat,timeZone}:{})}))});if(ready)setStatus(`${result.scheduled} reminder${result.scheduled===1?'':'s'} scheduled on this device. ${detailsSaved?'Notifications include task names and due dates.':'Task details could not be saved; notifications will use a generic message.'} Delivery may be delayed by the OS.`)}
+async function saveDetails(items=reminders()){
+ const signature=JSON.stringify(items);if(detailsSaved&&signature===detailsSignature)return;
+ const job=detailsJob.then(async()=>{if(detailsSaved&&signature===detailsSignature)return;try{await DockTaskReminders.replace(items);detailsSignature=signature;detailsSaved=true}catch{detailsSaved=false;detailsSignature=''}});
+ detailsJob=job.catch(()=>{});await job;
+}
+async function sync(force=false){
+ if(!ready||!subscription)return;if(syncing){dirty=true;forceSync=forceSync||force;return}syncing=true;setStatus('Syncing reminders…');
+ try{const items=reminders();await saveDetails(items);const scheduled=items.map(({id,at,repeat,timeZone})=>({id,at,...(repeat?{repeat,timeZone}:{})})),signature=JSON.stringify(scheduled);let count=scheduleCount;if(force||signature!==scheduleSignature||Date.now()-scheduleAt>=30000){const result=await api({action:'schedule',reminders:scheduled});scheduleSignature=signature;scheduleAt=Date.now();scheduleCount=result.scheduled;count=result.scheduled}if(ready)setStatus(`${count} reminder${count===1?'':'s'} scheduled on this device. ${detailsSaved?'Notifications include task names and due dates.':'Task details could not be saved; notifications will use a generic message.'} Delivery may be delayed by the OS.`)}
  catch(e){await recover(e);setStatus('Reminders not synced: '+e.message)}
- finally{syncing=false;if(dirty){dirty=false;sync()}}
+ finally{syncing=false;if(dirty){const forceNext=forceSync;dirty=false;forceSync=false;sync(forceNext)}}
 }
 export function notificationsEnabled(){return ready&&!!subscription}
 export function tasksChanged(){if(ready)saveDetails();clearTimeout(syncTimer);syncTimer=setTimeout(sync,500)}
@@ -34,18 +38,18 @@ export async function initNotifications(readTasks){
   subscription=await registration.pushManager.getSubscription();
   if(subscription&&!sameKey(subscription,config.publicKey)){await subscription.unsubscribe();subscription=null}
   if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(config.publicKey)});
-  await api({action:'subscribe',subscription:subscription.toJSON()});ready=true;await sync();
+  await api({action:'subscribe',subscription:subscription.toJSON()});ready=true;scheduleSignature='';detailsSignature='';detailsSaved=true;await sync();
  }
  $('#enable-notifications').onclick=()=>action(enable);
  $('#disable-notifications').onclick=()=>action(async()=>{
-  await api({action:'disable'});ready=false;await DockTaskReminders.clear().catch(()=>{});clearTimeout(syncTimer);if(subscription)await subscription.unsubscribe();subscription=null;setStatus('Device reminders disabled. Notification permission can also be changed in your browser settings.');
+  await api({action:'disable'});ready=false;scheduleSignature='';detailsSignature='';detailsSaved=true;await DockTaskReminders.clear().catch(()=>{});clearTimeout(syncTimer);if(subscription)await subscription.unsubscribe();subscription=null;setStatus('Device reminders disabled. Notification permission can also be changed in your browser settings.');
  });
  $('#test-notification').onclick=()=>action(async()=>{
   if(!ready||!subscription)await enable();
   if(!ready)throw Error('Connect notifications on this device before sending a test.');
   setStatus('Sending test notification…');const result=await api({action:'test'});setStatus(result.message+' Check your phone’s notification tray.');
  });
- window.addEventListener('online',()=>{if(!busy)sync()});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ready&&!busy)sync()});
+ window.addEventListener('online',()=>{if(!busy)sync(true)});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ready&&!busy)sync(true)});
  const start=generation;
  try{
   let reg=await navigator.serviceWorker.getRegistration(new URL('./',location.href).href);if(reg){try{reg=await navigator.serviceWorker.register('sw.js',{scope:'./',updateViaCache:'none'})}catch{}}const sub=await reg?.pushManager.getSubscription();
@@ -53,7 +57,7 @@ export async function initNotifications(readTasks){
   if(sub&&Notification.permission==='granted'){
    const config=await api();if(start!==generation)return;registration=reg;subscription=sub;
    ready=config.subscribed&&sameKey(sub,config.publicKey);buttons();
-   if(ready){await sync();return}
+   if(ready){await sync(true);return}
    setStatus('This device needs to reconnect. Tap Enable notifications, then Test notification.');return;
   }
   setStatus(Notification.permission==='denied'?'Notifications are blocked. Allow this site in browser settings and allow the browser’s notifications in Android Settings.':'Tap Test notification to send a real push to this device. First use asks for notification permission.');
