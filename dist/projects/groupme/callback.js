@@ -13,7 +13,7 @@
  let reason=error?'GroupMe declined authorization.':!token?'GroupMe returned no access token.':!fresh?'This tab’s authorization session is missing or expired.':state&&state!==pending.state?'The returned authorization state did not match.':'The returned token is invalid.';
  if(!valid)token=null;
  document.addEventListener('DOMContentLoaded',async()=>{
-  const status=document.getElementById('status');if(!valid){status.textContent=reason+' '+diagnostic+' Start again from Connect GroupMe in this tab.';return}
+  const status=document.getElementById('status');if(!valid){status.textContent=reason+' '+diagnostic+' If you already saved the access-token secret in Cloudflare, choose Run GroupMe below. Otherwise use Access token setup instructions.';return}
   const reveal=()=>{document.getElementById('verify').hidden=true;document.getElementById('result').hidden=false;status.textContent='Account confirmed. Finish the Cloudflare secret setup below.'};
   document.getElementById('copy').onclick=async()=>{try{await navigator.clipboard.writeText(token);document.getElementById('copy-status').textContent='Copied. Paste directly into the Cloudflare secret.'}catch{document.getElementById('copy-status').textContent='Clipboard access was blocked. Allow clipboard permission and try again.'}};
   document.getElementById('clear').onclick=()=>{token=null;document.getElementById('result').hidden=true;status.textContent='Token cleared from this page.'};

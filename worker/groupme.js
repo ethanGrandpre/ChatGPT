@@ -14,7 +14,9 @@ export async function groupme(request, env, networkFetch=fetch) {
    return json({name:user.name,id:String(user.id)});
   }catch{return json({error:'Account verification failed. Start authorization again.'},502)}
  }
- if(!env.GROUPME_ACCESS_TOKEN)return json({error:'Connect your account: add GROUPME_ACCESS_TOKEN as a Cloudflare Worker secret. See the GroupMe project setup.'},503);
+ const accessToken=typeof env.GROUPME_ACCESS_TOKEN==='string'?env.GROUPME_ACCESS_TOKEN.trim():'';
+ if(!accessToken)return json({error:'The running Worker has no GROUPME_ACCESS_TOKEN secret. Save and deploy that secret on chatgpt, then refresh. [GM_CONFIG_MISSING]'},503);
+ if(/[\r\n]/.test(accessToken))return json({error:'The GroupMe secret contains line breaks. Replace it with the copied access token only. [GM_CONFIG_FORMAT]'},503);
  let path,body;
  const id=url.searchParams.get('group');
  if(request.method==='GET'&&action==='groups')path='/groups?per_page=100&page='+Math.min(100,Math.max(1,Number(url.searchParams.get('page'))||1));
@@ -28,9 +30,9 @@ export async function groupme(request, env, networkFetch=fetch) {
   path='/groups/'+data.group+'/messages';body={message:{source_guid:data.source,text:data.text.trim()}};
  }else return json({error:'Unknown GroupMe action.'},400);
  try{
-  const response=await networkFetch('https://api.groupme.com/v3'+path,{method:body?'POST':'GET',headers:{'X-Access-Token':env.GROUPME_ACCESS_TOKEN,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(15000)});
+  const response=await networkFetch('https://api.groupme.com/v3'+path,{method:body?'POST':'GET',headers:{'X-Access-Token':accessToken,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(15000)});
   if(response.status===304)return json({response:{messages:[]}});
-  if(!response.ok)return json({error:response.status===401?'GroupMe rejected your token. Replace the Worker secret.':response.status===429?'GroupMe rate limit reached. Wait before refreshing.':'GroupMe request failed. Try refreshing before sending again.'},response.status===401?502:response.status===429?429:502);
+  if(!response.ok)return json({error:response.status===401?'GroupMe rejected the access token. Copy Your Access Token from the application details, not the Client ID, and replace the Worker secret. [GM_TOKEN_REJECTED]':response.status===429?'GroupMe rate limit reached. Wait before refreshing. [GM_RATE_LIMIT]':`GroupMe returned HTTP ${response.status}. Refresh before retrying a send. [GM_UPSTREAM]`},response.status===429?429:502);
   const data=await response.json();return json({response:data.response});
- }catch{return json({error:'Could not reach GroupMe. Refresh the conversation before retrying a send.'},502)}
+ }catch{return json({error:'Could not reach GroupMe or read its response. Refresh before retrying a send. [GM_NETWORK]'},502)}
 }
