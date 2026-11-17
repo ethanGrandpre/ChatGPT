@@ -96,6 +96,7 @@ async def copy_stream(reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 
 async def egress_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     upstream_writer = None
+    tunnel_open = False
     try:
         header = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), timeout=10)
         first = header.split(b"\r\n", 1)[0].decode("ascii", "strict").split()
@@ -114,13 +115,14 @@ async def egress_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
         upstream_reader, upstream_writer = await asyncio.wait_for(asyncio.open_connection(address, 443, family=family), timeout=10)
         writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
         await writer.drain()
+        tunnel_open = True
         directions = [asyncio.create_task(copy_stream(reader, upstream_writer)), asyncio.create_task(copy_stream(upstream_reader, writer))]
         _, pending = await asyncio.wait(directions, return_when=asyncio.FIRST_COMPLETED)
         for task in pending:
             task.cancel()
         await asyncio.gather(*directions, return_exceptions=True)
     except Exception:
-        if not writer.is_closing():
+        if not tunnel_open and not writer.is_closing():
             with __import__("contextlib").suppress(Exception):
                 writer.write(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n")
                 await writer.drain()
