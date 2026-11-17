@@ -33,6 +33,17 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
   if(response.status===304&&['messages','direct-messages'].includes(action))return reply({response:action==='direct-messages'?{direct_messages:[]}:{messages:[]}});
   if(!response.ok){
    if(response.status===401)return failure('GroupMe rejected the saved token. Copy Your Access Token (not Client ID), replace the Worker secret, and deploy.','TOKEN_REJECTED');
+   if(response.status===403){
+    let detail='';try{
+     const raw=await response.text();if(raw.length<=16000){const data=JSON.parse(raw);const errors=data?.meta?.errors;
+      if(Array.isArray(errors))detail=errors.filter(value=>typeof value==='string').slice(0,3).join(' ');
+     }
+    }catch{}
+    for(const secret of [token,encodeURIComponent(token)])detail=detail.split(secret).join('[redacted]');
+    detail=detail.replace(/https?:\/\/[^\s]+/gi,'[link]').replace(/[\x00-\x1f\x7f]/g,' ').slice(0,350);
+    const actionLabel=action==='send-direct'?'sending this direct message':action==='send'?'sending this group message':'access to this conversation';
+    return failure('GroupMe denied '+actionLabel+'.'+(detail?' GroupMe says: '+detail:' GroupMe supplied no readable reason. Check the account and recipient permissions.'),action==='send-direct'?'DM_FORBIDDEN':'PERMISSION_DENIED',403);
+   }
    if(response.status===429)return failure('GroupMe is limiting requests. Wait a minute before reconnecting.','RATE_LIMIT',429);
    return failure(`GroupMe returned HTTP ${response.status}.`,response.status>=300&&response.status<400?'REDIRECT':'UPSTREAM_HTTP');
   }
