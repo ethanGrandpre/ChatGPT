@@ -6,7 +6,7 @@ The hub now displays screenshots of a real Chromium process and sends clicks, ty
 
 1. Download `mac-server.zip` from the Browser project page and unzip it on your Mac.
 2. Make sure Python **3.10+**, Google Chrome (or Chromium), and Cloudflare `cloudflared` are already installed. The server uses the Chrome browser on your Mac; it does not download Node.js or Chromium. The first run uses `pip` to install the Python server packages in a private `.venv` folder.
-3. Open Terminal, type `bash ` (including the space), drag `Start-Browser.command` from the extracted folder into Terminal, and press Enter. It creates a private `.env` with a random shared secret and starts a localhost-only server.
+3. Open Terminal in the extracted folder and run `python3 main.py`. This creates a private Python environment, installs the pip dependencies, creates a private `.env` with a random shared secret, and starts the localhost server. No Node.js is used. `Start-Browser.command` is an alternative launcher.
 4. Open another Terminal and run `cloudflared tunnel --url http://127.0.0.1:8788`. Copy the HTTPS `trycloudflare.com` URL it prints. It is a temporary endpoint, not a secret. Keep both Terminal windows running.
 5. In Cloudflare → Workers & Pages → **chatgpt** → Settings → Variables and Secrets, add:
 
@@ -25,7 +25,7 @@ Save/deploy Cloudflare settings. Return to the hub → Browser → Run → **Con
 
 ## Everyday use
 
-Keep your Mac awake and both Terminal windows open. Restart the server with `bash Start-Browser.command`. A Quick Tunnel usually changes its address when restarted; update only `BROWSER_SERVER_URL` in Cloudflare when it does. A named Cloudflare Tunnel can provide a stable address later, with domain setup.
+Keep your Mac awake and both Terminal windows open. Restart the server with `python3 main.py`. A Quick Tunnel usually changes its address when restarted; update only `BROWSER_SERVER_URL` in Cloudflare when it does. A named Cloudflare Tunnel can provide a stable address later, with domain setup.
 
 Use the toolbar for Google searches or HTTPS addresses. Tap/click fields on the streamed page, then type with your keyboard. On mobile use the text box below the screen and Send/Enter. Sessions are temporary and separate for each connection; cookies and tabs are deleted on disconnect. Bookmark URLs and the interface theme stay in your local browser. Do not assume that the Mac's existing Chrome cookies or accounts will appear here.
 

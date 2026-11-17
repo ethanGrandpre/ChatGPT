@@ -15,12 +15,12 @@
       <div class="wallpaper"></div>
       <header class="pc-topbar"><a href="index.html" class="top-brand">dock <span>desktop</span></a><div class="top-center" id="top-date"></div><div class="top-actions"><button id="pc-notifications" aria-label="Open notifications">◌</button><button id="pc-theme" aria-label="Switch theme">◐</button><span id="pc-clock" class="clock"></span></div></header>
       <nav id="pc-icons" class="pc-icons" aria-label="Pinned apps"></nav>
-      <section class="welcome-card"><div class="eyebrow">YOUR WORKSPACE</div><h1 id="welcome-name">Good day.</h1><p>Open a pinned app, drag icons to arrange them, or press Ctrl/⌘ K to search.</p><button id="open-projects" class="primary">Browse projects <span>→</span></button></section>
+      <section class="welcome-card"><div class="eyebrow">YOUR WORKSPACE</div><h1 id="welcome-name">Good day.</h1><p>Open a pinned app, drag icons to arrange them, or press Ctrl/⌘ K to search.</p><button id="open-projects" class="primary">Open Dock <span>→</span></button></section>
       <div id="windows" class="windows" aria-label="Open application windows"></div>
       <div id="start-menu" class="start-menu" hidden>
         <div class="start-head"><strong>Start</strong><button id="close-start" aria-label="Close Start">×</button></div>
-        <label class="start-search"><span>⌕</span><input id="app-search" type="search" placeholder="Search projects and apps" autocomplete="off"></label>
-        <div class="start-label"><span>All apps</span><button id="show-all-projects">Browse projects</button></div>
+        <label class="start-search"><span>⌕</span><input id="app-search" type="search" placeholder="Search desktop apps" autocomplete="off"></label>
+        <div class="start-label"><span>Desktop apps</span><button id="show-all-projects">Open Dock</button></div>
         <div id="start-apps" class="start-apps"></div>
         <section id="start-recent-section" class="start-recent-section" hidden><div class="start-label"><span>Recent</span><button id="clear-recent">Clear</button></div><div id="start-recent" class="start-recent"></div></section>
         <footer class="start-footer"><span id="workspace-owner">Private workspace</span><button id="start-settings">Settings</button></footer>
@@ -33,9 +33,9 @@
       <header class="phone-status"><a href="index.html" aria-label="Back to projects">‹</a><time id="phone-clock"></time><button id="phone-notifications" aria-label="Open notifications">◌</button></header>
       <main id="phone-home" class="phone-home">
         <section class="phone-date"><span class="eyebrow">DOCK · YOUR WORKSPACE</span><time id="phone-date"></time><p>Your projects, in one place.</p></section>
-        <button id="phone-search-open" class="phone-search"><span>⌕</span> Search projects <span class="search-shortcut">⌕</span></button>
+        <button id="phone-search-open" class="phone-search"><span>⌕</span> Search apps <span class="search-shortcut">⌕</span></button>
         <div id="phone-favorites" class="phone-favorites" aria-label="Pinned apps"></div>
-        <section class="phone-apps-section"><div class="phone-section-head"><h1>Projects</h1><span id="phone-app-count"></span></div><div id="phone-apps" class="phone-apps"></div></section>
+        <section class="phone-apps-section"><div class="phone-section-head"><h1>Apps</h1><span id="phone-app-count"></span></div><div id="phone-apps" class="phone-apps"></div></section>
         <nav class="phone-dock" aria-label="Phone navigation"><button data-phone-tab="home" class="active"><span>⌂</span>Home</button><button data-phone-tab="apps"><span>▦</span>Apps</button><button data-phone-tab="recent"><span>◷</span>Recent</button><button id="phone-settings"><span>⚙</span>Settings</button></nav>
       </main>
       <section id="phone-app" class="phone-app" hidden><header><button id="phone-back" aria-label="Back to home">‹</button><span id="phone-app-title"></span><button id="phone-app-menu" aria-label="App options">···</button></header><iframe id="phone-frame" title="Project app" referrerpolicy="same-origin"></iframe></section>
