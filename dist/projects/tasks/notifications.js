@@ -18,6 +18,7 @@ async function sync(){
  catch(e){await recover(e);setStatus('Reminders not synced: '+e.message)}
  finally{syncing=false;if(dirty){dirty=false;sync()}}
 }
+export function notificationsEnabled(){return ready&&!!subscription}
 export function tasksChanged(){if(ready)saveDetails();clearTimeout(syncTimer);syncTimer=setTimeout(sync,500)}
 async function action(fn){if(busy)return;generation++;busy=true;buttons();try{await fn()}catch(e){await recover(e);setStatus(e.message||'Could not configure notifications.')}finally{busy=false;buttons()}}
 function activated(){let timer;return Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Notification setup timed out. Reload Tasks, sign in if asked, and try Enable notifications again.')),15000)})]).finally(()=>clearTimeout(timer))}
