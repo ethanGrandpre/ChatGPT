@@ -40,7 +40,7 @@ def chrome_path() -> str:
     ]
     candidates += [shutil.which(name) for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome")]
     for candidate in candidates:
-        if candidate and Path(candidate).is_file():
+        if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
             return candidate
     raise RuntimeError("Install Chrome or Chromium on this Mac, then restart. Dock will use the browser already installed; it does not download Chromium.")
 

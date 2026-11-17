@@ -13,6 +13,12 @@ python3 -c 'import sys; exit(0 if sys.version_info >= (3, 10) else 1)' || {
   read -r -p 'Press Enter to close'
   exit 1
 }
+if ! command -v cloudflared >/dev/null; then
+  echo 'Cloudflare Tunnel (cloudflared) is required to connect this Mac to your private hub.'
+  echo 'Install it once using Cloudflare’s instructions, then run this setup again.'
+  read -r -p 'Press Enter to close'
+  exit 1
+fi
 
 if [ ! -f .env ]; then
   umask 077
@@ -26,6 +32,8 @@ fi
 
 if [ ! -d .venv ]; then python3 -m venv .venv; fi
 .venv/bin/python -m pip install -r requirements.txt
+DOCK_CHROME_BINARY="$(.venv/bin/python -c 'from server import chrome_path; print(chrome_path())')"
+printf 'Using installed Chrome: %s\n' "$DOCK_CHROME_BINARY"
 printf '\nKeep this Terminal window open. In another Terminal, run:\n'
 printf 'cloudflared tunnel --url http://127.0.0.1:8788\n\n'
 printf 'See README.md to connect the tunnel URL and secret to Cloudflare.\n\n'
