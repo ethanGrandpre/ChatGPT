@@ -13,15 +13,25 @@ export async function groupmeLive(request,token,networkFetch){
  if(data.action==='subscribe')Object.assign(frame,{subscription:'/group/'+data.group,ext:{access_token:token,timestamp:Math.floor(Date.now()/1000)}});
  if(data.action==='connect')Object.assign(frame,{connectionType:'long-polling',advice:{timeout:20000}});
  try{
-  const response=await networkFetch(new Request('https://push.groupme.com/faye',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify([frame]),redirect:'manual',signal:AbortSignal.timeout(28000)}));
+  const outgoing=[frame];
+  if(data.action==='subscribe'){
+   const profile=await networkFetch(new Request('https://api.groupme.com/v3/users/me',{headers:{'X-Access-Token':token,Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(10000)}));
+   if(!profile.ok)throw Error();const owner=String((await profile.json()).response?.id||'');if(!/^\d{1,30}$/.test(owner))throw Error();
+   outgoing.push({...frame,id:frame.id+':user',subscription:'/user/'+owner});
+  }
+  const response=await networkFetch(new Request('https://push.groupme.com/faye',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(outgoing),redirect:'manual',signal:AbortSignal.timeout(28000)}));
   if(!response.ok)return json({error:response.status===429?'Typing events are rate limited.':'Typing events are temporarily unavailable.'},response.status===429?429:502);
   const raw=await response.text();if(raw.length>200000)return json({error:'Typing response was too large.'},502);const frames=JSON.parse(raw);if(!Array.isArray(frames))throw Error();
   // Never forward ext, access tokens, signatures, raw upstream errors or message bodies.
   const events=[];for(const item of frames.slice(0,100)){
    if(typeof item?.channel!=='string')continue;
-   if(item.channel.startsWith('/meta/')){const clean={channel:item.channel,successful:item.successful===true};if(/^[a-zA-Z0-9_-]{8,128}$/.test(item.clientId||''))clean.clientId=item.clientId;if(['retry','handshake','none'].includes(item.advice?.reconnect))clean.reconnect=item.advice.reconnect;const interval=Number(item.advice?.interval);if(Number.isFinite(interval))clean.interval=Math.min(60000,Math.max(500,interval));events.push(clean)}
-   else if(/^\/group\/\d{1,30}$/.test(item.channel)&&item.data?.type==='typing'){
-    const value=item.data,id=String(value.user_id||value.subject?.user_id||'');if(!/^\d{1,30}$/.test(id))continue;const name=String(value.name||value.subject?.name||'').slice(0,80);events.push({channel:item.channel,type:'typing',userId:id,name});
+   if(item.channel.startsWith('/meta/')){const clean={channel:item.channel,successful:item.successful===true};if(/^\/(group|user)\/\d{1,30}$/.test(item.subscription||''))clean.subscription=item.subscription;if(/^[a-zA-Z0-9_-]{8,128}$/.test(item.clientId||''))clean.clientId=item.clientId;if(['retry','handshake','none'].includes(item.advice?.reconnect))clean.reconnect=item.advice.reconnect;const interval=Number(item.advice?.interval);if(Number.isFinite(interval))clean.interval=Math.min(60000,Math.max(500,interval));events.push(clean)}
+   else if(/^\/(group|user)\/\d{1,30}$/.test(item.channel)){
+    const value=item.data;if(!value||typeof value!=='object'||(value.type||item.type)!=='typing')continue;
+    let subject=value.subject;if(typeof subject==='string'&&subject.length<8000){try{subject=JSON.parse(subject)}catch{subject=null}}
+    const id=String(value.user_id||subject?.user_id||'');if(!/^\d{1,30}$/.test(id))continue;
+    const group=item.channel.startsWith('/group/')?item.channel.slice(7):String(value.group_id||subject?.group_id||'');if(!/^\d{1,30}$/.test(group))continue;
+    const name=String(value.name||subject?.name||'').slice(0,80);events.push({channel:'/group/'+group,type:'typing',userId:id,name});
    }
   }
   return json(JSON.parse(JSON.stringify({events}).split(token).join('[redacted]')));
