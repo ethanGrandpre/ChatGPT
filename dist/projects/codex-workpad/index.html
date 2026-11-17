@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <script src="../../appearance.js"></script>
+  <link rel="stylesheet" href="../../appearance.css">
+  <link rel="stylesheet" href="../../style.css">
+  <title>Codex Workpad — Dock</title>
+  <style>
+    .workpad{max-width:760px;margin:auto;padding:0 24px}.workpad header{height:76px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}.workpad main{padding:52px 0}.workpad h1{font-size:32px;letter-spacing:-1px;font-weight:500;margin:10px 0}.workpad p{font-size:12px;line-height:1.8;color:var(--muted);max-width:540px}.workpad button{border:1px solid var(--line);border-radius:5px;padding:8px 11px;font-size:11px}.workpad .primary{display:inline-block;background:var(--text);color:var(--bg);border:1px solid var(--text);border-radius:5px;padding:11px 15px;font-size:12px;margin-top:22px}.workpad .primary:hover{opacity:.8}.workpad .hint{border-top:1px solid var(--line);margin-top:45px;padding-top:18px;font-size:11px}@media(max-width:600px){.workpad{padding:0 18px}.workpad main{padding:35px 0}.workpad h1{font-size:27px}.workpad header{height:62px}}
+  </style>
+</head>
+<body>
+  <div class="workpad">
+    <header><a href="../../">← Projects</a><button id="theme" aria-label="Switch theme">◐</button></header>
+    <main>
+      <div class="eyebrow">WORK · PERSONAL WORKFLOW</div>
+      <h1>Codex Workpad</h1>
+      <p>A small place to keep the work you want Codex to pick up, then collect editable notes about what was completed.</p>
+      <a class="primary" href="run.html">Run project →</a>
+      <p class="hint">Your instructions and notes are saved in this browser. Copy the instructions into your Codex chat to start work, then paste a completion summary back here. This project does not automatically send tasks to Codex.</p>
+    </main>
+  </div>
+  <script>document.getElementById('theme').addEventListener('click',()=>window.DockAppearance?.toggleTheme());</script>
+</body>
+</html>
