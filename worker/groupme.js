@@ -1,5 +1,6 @@
 // All calls reach this module only after Dock owner authentication.
-export const GROUPME_RELEASE='groupme-dms-readonly-1';
+export const GROUPME_RELEASE='groupme-notify-emoji-1';
+export const GROUPME_EMOJI=['❤️','👍','🤣','🎉','🔥','😮','👀','😭','🥺','🙏','💀','🫶','🤬','💅','🫠'];
 const ORIGIN='https://api.groupme.com';
 const reply=(data,status=200)=>Response.json({...data,release:GROUPME_RELEASE},{status,headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','X-Dock-GroupMe-Release':GROUPME_RELEASE}});
 function failure(message,code,status=502){return reply({error:message,code},status)}
@@ -28,7 +29,7 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
   if(request.headers.get('Origin')!==url.origin||!request.headers.get('Content-Type')?.startsWith('application/json'))return failure('Request origin was rejected.','ORIGIN',403);
   try{const raw=await request.text();if(raw.length>2000)return failure('Invalid reaction.','INPUT',400);const data=JSON.parse(raw);
    if(!/^\d{1,30}$/.test(data?.group||'')||!/^\d{1,40}$/.test(data?.message||'')||typeof data.liked!=='boolean')return failure('Invalid reaction.','INPUT',400);
-   reactionTarget=data;path='/v3/messages/'+data.group+'/'+data.message+'/'+(data.liked?'like':'unlike');
+   const emoji=data.emoji||'❤️';if(!GROUPME_EMOJI.includes(emoji))return failure('GroupMe supports these 15 reaction emoji only.','REACTION_EMOJI',400);reactionTarget={...data,emoji};if(data.liked)body={like_icon:{type:'unicode',code:emoji}};path='/v3/messages/'+data.group+'/'+data.message+'/'+(data.liked?'like':'unlike');
   }catch{return failure('Invalid reaction.','INPUT',400)}
  }else if(request.method==='POST'&&action==='send'){
   if(request.headers.get('Origin')!==url.origin||!request.headers.get('Content-Type')?.startsWith('application/json'))return failure('Request origin was rejected.','ORIGIN',403);
@@ -69,16 +70,21 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
    return failure(`GroupMe returned HTTP ${response.status}.`,response.status>=300&&response.status<400?'REDIRECT':'UPSTREAM_HTTP');
   }
   if(reactionTarget){
+   let acknowledgement;try{const raw=await response.text();if(raw)acknowledgement=JSON.parse(raw)}catch{}
+   const icons=acknowledgement?.response?.reactions||acknowledgement?.reactions;
+   const emojiConfirmed=reactionTarget.liked&&Array.isArray(icons)&&icons.some(icon=>icon.type==='unicode'&&icon.code===reactionTarget.emoji);
    const options={headers:{'X-Access-Token':token,Accept:'application/json'},redirect:'manual',signal};
    const account=await networkFetch(new Request(ORIGIN+'/v3/users/me',options));
    const history=await networkFetch(new Request(ORIGIN+'/v3/groups/'+reactionTarget.group+'/messages?limit=100',options));
+   if((!account.ok||!history.ok)&&emojiConfirmed)return reply({response:{confirmed:true,message_id:String(reactionTarget.message),emoji:reactionTarget.emoji}});
    if(!account.ok||!history.ok)return failure('GroupMe accepted the reaction request, but its saved state could not be checked. Refresh the conversation before trying again.','REACTION_UNCONFIRMED');
    const user=(await account.json()).response,list=(await history.json()).response?.messages;
    const message=Array.isArray(list)?list.find(m=>String(m.id)===String(reactionTarget.message)):null;
+   if((!user?.id||!message||!Array.isArray(message.favorited_by))&&emojiConfirmed)return reply({response:{confirmed:true,message_id:String(reactionTarget.message),emoji:reactionTarget.emoji}});
    if(!user?.id||!message||!Array.isArray(message.favorited_by))return failure('The reaction could not be verified in GroupMe’s latest 100 messages. No local reaction was added.','REACTION_UNCONFIRMED');
    const favorites=message.favorited_by.map(String),liked=favorites.includes(String(user.id));
-   if(liked!==reactionTarget.liked)return failure('GroupMe has not confirmed this reaction. No local reaction was added. Refresh the conversation before trying again.','REACTION_UNCONFIRMED');
-   return reply({response:{confirmed:true,message_id:String(message.id),favorited_by:favorites}});
+   if((reactionTarget.liked&&reactionTarget.emoji!=='❤️'&&!emojiConfirmed)||(!emojiConfirmed&&liked!==reactionTarget.liked))return failure('GroupMe has not confirmed this reaction. No local reaction was added. Refresh the conversation before trying again.','REACTION_UNCONFIRMED');
+   return reply({response:{confirmed:true,message_id:String(message.id),favorited_by:favorites,emoji:reactionTarget.liked?reactionTarget.emoji:null}});
   }
   if(action==='delete')return reply({response:{ok:true}});
   let data;try{data=await response.json()}catch{return failure('GroupMe returned an unreadable response.','RESPONSE_FORMAT')}

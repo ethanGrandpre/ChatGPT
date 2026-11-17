@@ -25,7 +25,7 @@ export class TaskPush {
  async authorization(endpoint){const keys=await this.ensureKeys(),aud=new URL(endpoint).origin,now=Math.floor(Date.now()/1000);let cached=this.tokens[aud];if(!cached||cached.refresh<now){const key=await crypto.subtle.importKey('jwk',keys.privateJwk,{name:'ECDSA',namedCurve:'P-256'},false,['sign']);const jwt=await new SignJWT({aud,sub:'mailto:'+this.env.OWNER_EMAIL}).setProtectedHeader({alg:'ES256',typ:'JWT'}).setExpirationTime(now+12*3600).sign(key);cached={jwt,refresh:now+6*3600};this.tokens[aud]=cached;await this.ctx.storage.put('tokens',this.tokens)}return`vapid t=${cached.jwt}, k=${keys.publicKey}`;}
  async deliver(device){
   let authorization;try{authorization=await this.authorization(device.endpoint)}catch{const error=Error('The server could not sign the notification request. Please try again after the deployment.');error.code='push_signing_failed';throw error}
-  try{const response=await this.networkFetch(device.endpoint,{method:'POST',headers:{Authorization:authorization,TTL:'3600',Urgency:'high',Topic:'dock-tasks'},body:null,redirect:'manual',signal:AbortSignal.timeout(10000)});return response.status}
+  try{const response=await this.networkFetch(device.endpoint,{method:'POST',headers:{Authorization:authorization,TTL:'3600',Urgency:'high',Topic:device.topic||'dock-tasks'},body:null,redirect:'manual',signal:AbortSignal.timeout(10000)});return response.status}
   catch(cause){const timeout=['TimeoutError','AbortError'].includes(cause?.name);const error=Error(timeout?'The push request timed out. Wait 30 seconds, then try again.':'The server could not send the push request. Wait 30 seconds, then try again.');error.code=timeout?'push_timeout':'push_send_failed';throw error}
  }
 
@@ -42,7 +42,7 @@ export class TaskPush {
    if(!data||!data.entries||typeof data.entries!=='object'||Array.isArray(data.entries)||Object.keys(data.entries).length>100)return json({error:'Invalid sync data.'},400);
    const entries=await this.ctx.storage.get('project-sync:entries')||{};let changed=false;
    for(const [key,item] of Object.entries(data.entries)){
-    if(!/^dock-[a-zA-Z0-9._:-]{1,120}$/.test(key)||key==='dock-tasks-device-v1'||key.startsWith('dock-sync-')||!item||!(typeof item.value==='string'||item.value===null)||item.value?.length>300000||!Number.isFinite(item.modifiedAt)||item.modifiedAt<0||typeof item.clientId!=='string'||item.clientId.length>100)return json({error:'Invalid sync entry.'},400);
+    if(!/^dock-[a-zA-Z0-9._:-]{1,120}$/.test(key)||['dock-tasks-device-v1','dock-groupme-device-v1'].includes(key)||key.startsWith('dock-sync-')||!item||!(typeof item.value==='string'||item.value===null)||item.value?.length>300000||!Number.isFinite(item.modifiedAt)||item.modifiedAt<0||typeof item.clientId!=='string'||item.clientId.length>100)return json({error:'Invalid sync entry.'},400);
     const incoming={value:item.value,modifiedAt:Math.min(Math.round(item.modifiedAt),Date.now()+300000),clientId:item.clientId};
     if(compareVersion(incoming,entries[key])>0){entries[key]=incoming;changed=true}
    }

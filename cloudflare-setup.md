@@ -78,3 +78,11 @@ Cloudflare's Git integration rebuilds on pushes to main. The optional `.github/w
 The new hostname uses a separate browser storage area. Persistent project records and preferences now sync through the owner-only Cloudflare Worker when signed in. Existing data remains on its original hostname until you open the updated site there once to upload it; signed-in devices then share the same saved state.
 
 References: [Cloudflare Access for Workers](https://developers.cloudflare.com/workers/configuration/cloudflare-access/) · [Turnstile server verification](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
+
+## GroupMe chat notifications
+
+The GroupMe Messages project uses the existing GROUPME_ACCESS_TOKEN secret. Per-chat Web Push adds a separate GROUPME_PUSH binding and the GroupMePush class with migration tag groupme-push-v1. Deploy with the committed wrangler.jsonc so that this binding and migration are applied. Keep the existing TaskPush binding and migration; its reminders and device subscriptions are independent.
+
+After deployment, open GroupMe Messages → device notification settings. Enable each browser/device, use Send test, then choose Notify on in desired chats. Chat choices apply across all enabled devices. Up to ten chats are checked about every 30 seconds by a server alarm, with backoff on errors. No Mac server or open page is required. The OS/browser must permit Web Push; iPhone/iPad requires Home Screen installation. Push-service acceptance is not a guarantee of immediate OS delivery.
+
+The push contains no message payload. The service worker fetches short previews through the existing owner-only gate and acknowledges them after display. If sign-in expired, it shows a generic alert linking to Dock. Pending previews expire after 24 hours and never enter project-sync. Device IDs also remain device-local.

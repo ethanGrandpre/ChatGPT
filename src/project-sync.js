@@ -4,7 +4,7 @@
  let storage;try{storage=window.localStorage}catch{window.DockProjectSync={ready:Promise.resolve(),getStatus:()=> 'Browser storage is unavailable'};return}
  const rawSet=Storage.prototype.setItem,rawRemove=Storage.prototype.removeItem,rawClear=Storage.prototype.clear;
  let meta={},pending={},timer,requesting=false,again=false,clientId,updateAvailable=false,serverRevision=null;
- const eligible=key=>typeof key==='string'&&key.startsWith(PREFIX)&&key!==DEVICE_KEY&&!key.startsWith('dock-sync-');
+ const eligible=key=>typeof key==='string'&&key.startsWith(PREFIX)&&key!==DEVICE_KEY&&key!=='dock-groupme-device-v1'&&!key.startsWith('dock-sync-');
  const readJson=(key,fallback)=>{try{const value=JSON.parse(storage.getItem(key));return value&&typeof value==='object'&&!Array.isArray(value)?value:fallback}catch{return fallback}};
  function initMeta(){meta=readJson(META,{});try{clientId=storage.getItem(CLIENT);if(!clientId){clientId=crypto.randomUUID();rawSet.call(storage,CLIENT,clientId)}}catch{clientId='temporary-'+Math.random().toString(36).slice(2)}}
  function writeMeta(){try{const latest=readJson(META,{});for(const [key,entry]of Object.entries(latest))if(compare(entry,meta[key])>0)meta[key]=entry;rawSet.call(storage,META,JSON.stringify(meta))}catch{}}

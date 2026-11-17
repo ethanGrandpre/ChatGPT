@@ -115,6 +115,13 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       const objectId=env.TASK_PUSH.idFromName(identity.email.toLowerCase());
       return env.TASK_PUSH.get(objectId).fetch(request);
     }
+    if(url.pathname==='/api/groupme-push'){
+      if(botRequired&&!(await verifiedSession(request,env,identity)))return reply('Verification required.',403);
+      if(!env.GROUPME_PUSH)return reply(JSON.stringify({error:'GroupMe push storage is not deployed yet. Wait for the latest deployment.'}),503,{'Content-Type':'application/json'});
+      if(!['GET','POST'].includes(request.method))return reply('Method not allowed.',405);
+      if(request.method==='POST'&&(request.headers.get('Origin')!==url.origin||!request.headers.get('Content-Type')?.startsWith('application/json')))return reply('Invalid origin or content type.',403);
+      return env.GROUPME_PUSH.get(env.GROUPME_PUSH.idFromName(identity.email.toLowerCase())).fetch(request);
+    }
     if (url.pathname.startsWith('/api/groupme/')) {
       if (botRequired && !(await verifiedSession(request, env, identity))) return reply('Verification required.',403);
       return groupme(request, env, networkFetch);
@@ -163,3 +170,5 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
 export default { fetch: createHandler() };
 
 export {TaskPush} from './task-push.js';
+
+export {GroupMePush} from './groupme-push.js';

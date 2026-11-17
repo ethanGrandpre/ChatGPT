@@ -1,0 +1,10 @@
+const deviceId=new URL(self.location.href).searchParams.get('device');
+self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
+// No fetch handler or asset cache: private content always uses Dock authentication.
+self.addEventListener('push',event=>event.waitUntil((async()=>{
+ let events=[];try{const response=await fetch('/api/groupme-push?events=1&deviceId='+encodeURIComponent(deviceId),{credentials:'include',cache:'no-store'});if(response.ok)events=(await response.json()).events||[]}catch{}
+ if(!events.length){await self.registration.showNotification('New GroupMe activity',{body:'Open Dock to sign in and view your messages.',tag:'dock-groupme',data:{url:new URL('run.html',self.registration.scope).href}});return}
+ for(const item of events.slice(-5)){const url=new URL('run.html',self.registration.scope);if(/^(groups|dms):\d{1,30}$/.test(item.chat))url.searchParams.set('chat',item.chat);await self.registration.showNotification(item.name||'GroupMe',{body:(item.count>1?item.count+' new messages · ':'')+(item.body||'New message'),tag:'dock-groupme-'+item.chat,data:{url:url.href}})}
+ try{await fetch('/api/groupme-push',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'ack',deviceId,ids:events.map(e=>e.id)})})}catch{}
+})()));
+self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil((async()=>{const target=new URL(event.notification.data?.url||'run.html',self.registration.scope);if(target.origin!==self.location.origin||!target.href.startsWith(self.registration.scope))return;for(const client of await self.clients.matchAll({type:'window',includeUncontrolled:true}))if(client.url.startsWith(self.registration.scope)){await client.navigate(target.href);return client.focus()}return self.clients.openWindow(target.href)})())});
