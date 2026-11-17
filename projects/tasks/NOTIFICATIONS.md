@@ -17,3 +17,12 @@ The scheduler sends standard payload-free Web Push POSTs with ES256 VAPID authen
 Cloudflare storage/alarms and browser push quotas apply. If deployment cannot create the Durable Object namespace, the UI reports that notification storage is not configured. Do not work around an error by granting public access to the API.
 
 Tests cover signatures, scheduling/deduplication, cancellations, retry/expiration and authentication. Automated browser tests mock notification permission and push subscription; actual phone delivery must be checked with **Send test** on your device.
+
+## Android Chrome verification and recovery
+1. Open the live Tasks Run page in a normal Chrome tab, sign in, and tap **Enable notifications**. Choose **Allow** for this site. Android Settings → Apps → Chrome → Notifications must also be enabled.
+2. Tap **Send test** and check the Android notification tray. The status “Sent to your push service” confirms provider acceptance, not a displayed notification.
+3. Give an unfinished task a **Remind me** time a couple of minutes ahead and Save. Wait until the panel reports the reminder is scheduled, then leave Tasks or lock the phone. You do not need to leave the Tasks tab open, but force-stopping Chrome or OS restrictions can prevent delivery.
+
+Due reminders and tests use high Web Push urgency to improve delivery while Android is idle; this remains subject to browser/OS/provider limits. If a push subscription expires, Enable notifications becomes available again and the expired browser subscription is removed. If the server's application key changes, Enable replaces a subscription tied to the old key. Setup has a timeout rather than leaving the permission button stuck indefinitely. Blocking site permission or Chrome's Android notification permission must be corrected on the phone.
+
+Verification now also includes a real Chromium service worker processing a simulated payload-free push with no Tasks page open and creating a notification with the correct destination. This confirms the browser handler, not real FCM-to-phone delivery; that final check is the device's Send test above.

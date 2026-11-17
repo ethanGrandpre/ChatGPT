@@ -11,7 +11,7 @@ export class TaskPush {
  async ensureKeys(){if(!this.keys){const pair=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);this.keys={privateJwk:await crypto.subtle.exportKey('jwk',pair.privateKey),publicKey:b64(new Uint8Array(await crypto.subtle.exportKey('raw',pair.publicKey)))};await this.ctx.storage.put('keys',this.keys)}return this.keys;}
  async persist(){const ids=Object.keys(this.devices);for(const id of ids)await this.ctx.storage.put('device:'+id,this.devices[id]);for(const id of this.deviceIds)if(!this.devices[id])await this.ctx.storage.delete('device:'+id);await this.ctx.storage.put('deviceIds',ids);this.deviceIds=ids;let next=Infinity;for(const d of Object.values(this.devices)){if(d.reminders.length){const due=Math.min(...d.reminders.map(r=>r.at));next=Math.min(next,Math.max(due,d.retryAt||0))}}if(Number.isFinite(next))await this.ctx.storage.setAlarm(Math.max(Date.now()+1000,next));else await this.ctx.storage.deleteAlarm();}
  async authorization(endpoint){const keys=await this.ensureKeys(),aud=new URL(endpoint).origin,now=Math.floor(Date.now()/1000);let cached=this.tokens[aud];if(!cached||cached.refresh<now){const key=await crypto.subtle.importKey('jwk',keys.privateJwk,{name:'ECDSA',namedCurve:'P-256'},false,['sign']);const jwt=await new SignJWT({aud,sub:'mailto:'+this.env.OWNER_EMAIL}).setProtectedHeader({alg:'ES256',typ:'JWT'}).setExpirationTime(now+12*3600).sign(key);cached={jwt,refresh:now+6*3600};this.tokens[aud]=cached;await this.ctx.storage.put('tokens',this.tokens)}return`vapid t=${cached.jwt}, k=${keys.publicKey}`;}
- async deliver(device){const response=await this.networkFetch(device.endpoint,{method:'POST',headers:{Authorization:await this.authorization(device.endpoint),TTL:'3600',Urgency:'normal',Topic:'dock-tasks'},body:null,redirect:'error',signal:AbortSignal.timeout(10000)});return response.status;}
+ async deliver(device){const response=await this.networkFetch(device.endpoint,{method:'POST',headers:{Authorization:await this.authorization(device.endpoint),TTL:'3600',Urgency:'high',Topic:'dock-tasks'},body:null,redirect:'error',signal:AbortSignal.timeout(10000)});return response.status;}
  fetch(request){return this.run(async()=>{try{
   const url=new URL(request.url),id=url.searchParams.get('deviceId');
   if(request.method==='GET'){const keys=await this.ensureKeys(),device=this.devices[id];return json({configured:true,publicKey:keys.publicKey,subscribed:!!device,scheduled:device?.reminders.length||0,lastAccepted:device?.lastAccepted||null,lastError:device?.lastError||null});}
@@ -24,14 +24,14 @@ export class TaskPush {
    device={endpoint,reminders:device?.reminders||[],sent:device?.sent||{},lastTest:device?.lastTest||0,lastError:null};this.devices[deviceId]=device;await this.ensureKeys();await this.persist();return json({subscribed:true});
   }
   if(data.action==='disable'){delete this.devices[deviceId];await this.persist();return json({subscribed:false})}
-  if(!device)return json({error:'Device subscription is missing. Enable notifications again.'},409);
+  if(!device)return json({error:'Device subscription is missing. Enable notifications again.',code:'subscription_missing'},409);
   if(data.action==='schedule'){
    const reminders=validateReminders(data.reminders);device.reminders=reminders.filter(r=>device.sent[r.id]!==r.at);const retain=new Set(reminders.map(r=>r.id));device.sent=Object.fromEntries(Object.entries(device.sent).filter(([id])=>retain.has(id)));device.retryAt=0;device.attempts=0;await this.persist();return json({scheduled:device.reminders.length});
   }
   if(data.action==='test'){
    if(Date.now()-(device.lastTest||0)<30000)return json({error:'Wait 30 seconds between test notifications.'},429);
    device.lastTest=Date.now();await this.persist();let code;try{code=await this.deliver(device)}catch{code=503}
-   if(code===404||code===410){delete this.devices[deviceId];await this.persist();return json({error:'This device subscription expired. Enable notifications again.'},409)}
+   if(code===404||code===410){delete this.devices[deviceId];await this.persist();return json({error:'This device subscription expired. Enable notifications again.',code:'subscription_expired'},409)}
    if(code<200||code>=300){device.lastError='Push service rejected the test ('+code+').';await this.persist();return json({error:device.lastError},502)}
    device.lastAccepted=Date.now();device.lastError=null;await this.persist();return json({accepted:true,message:'Sent to your push service. Device delivery depends on browser and OS settings.'});
   }

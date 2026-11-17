@@ -1,20 +1,56 @@
-const DEVICE='dock-tasks-device-v1';let getTasks,registration,subscription,deviceId,syncTimer,syncing=false,dirty=false,ready=false;const $=s=>document.querySelector(s);const setStatus=t=>$('#notification-status').textContent=t;
-async function api(data){const url='/api/tasks-push?deviceId='+encodeURIComponent(deviceId||'');const response=await fetch(url,data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,deviceId})}:{cache:'no-store'});let result;try{result=await response.json()}catch{throw Error('Notification server is unavailable. Sign in again or wait for the deployment.')}if(!response.ok)throw Error(result.error||'Notifications could not be configured.');return result}
-function bytes(key){const raw=atob(key.replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(raw,c=>c.charCodeAt(0))}
-function buttons(){const on=!!subscription&&ready;$('#enable-notifications').hidden=on;$('#disable-notifications').hidden=!on;$('#test-notification').disabled=!on}
+const DEVICE='dock-tasks-device-v1';
+let getTasks,registration,subscription,deviceId,syncTimer,syncing=false,dirty=false,ready=false,busy=false,generation=0;
+const $=s=>document.querySelector(s),setStatus=t=>$('#notification-status').textContent=t;
+async function api(data){
+ const response=await fetch('/api/tasks-push?deviceId='+encodeURIComponent(deviceId||''),data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,deviceId})}:{cache:'no-store'});
+ let result;try{result=await response.json()}catch{throw Error('Sign in to the hub again, then retry. The notification server did not return a valid response.')}
+ if(!response.ok){const error=Error(result.error||'Notifications could not be configured.');error.status=response.status;error.code=result.code;throw error}return result;
+}
+function keyBytes(key){const raw=atob(key.replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(raw,c=>c.charCodeAt(0))}
+function sameKey(sub,key){const existing=sub?.options?.applicationServerKey;if(!existing)return true;const a=new Uint8Array(existing),b=keyBytes(key);return a.length===b.length&&a.every((v,i)=>v===b[i])}
+function buttons(){const on=!!subscription&&ready;$('#enable-notifications').hidden=on;$('#enable-notifications').disabled=busy;$('#disable-notifications').hidden=!on;$('#disable-notifications').disabled=busy;$('#test-notification').disabled=busy||!on}
 function reminders(){const now=Date.now();return getTasks().filter(t=>t.status!=='done'&&Number.isFinite(t.remindAt)&&t.remindAt>now-86400000&&t.remindAt<=now+366*86400000).map(t=>({id:t.id,at:t.remindAt}))}
-async function sync(){if(!ready||!subscription)return;if(syncing){dirty=true;return}syncing=true;setStatus('Syncing reminders…');try{const result=await api({action:'schedule',reminders:reminders()});setStatus(`${result.scheduled} reminder${result.scheduled===1?'':'s'} scheduled on this device. Delivery may be delayed by the OS.`)}catch(e){setStatus('Reminders not synced: '+e.message)}finally{syncing=false;if(dirty){dirty=false;sync()}}}
+async function recover(error){if(error.status===409){ready=false;if(error.code==='subscription_expired'){try{await subscription?.unsubscribe()}catch{}subscription=null}buttons()}}
+async function sync(){
+ if(!ready||!subscription)return;if(syncing){dirty=true;return}syncing=true;setStatus('Syncing reminders…');
+ try{const result=await api({action:'schedule',reminders:reminders()});if(ready)setStatus(`${result.scheduled} reminder${result.scheduled===1?'':'s'} scheduled on this device. Delivery may be delayed by the OS.`)}
+ catch(e){await recover(e);setStatus('Reminders not synced: '+e.message)}
+ finally{syncing=false;if(dirty){dirty=false;sync()}}
+}
 export function tasksChanged(){clearTimeout(syncTimer);syncTimer=setTimeout(sync,500)}
-export async function initNotifications(readTasks){getTasks=readTasks;const supported='serviceWorker'in navigator&&'PushManager'in window&&'Notification'in window&&window.isSecureContext;if(!supported){setStatus('This browser cannot receive Web Push here. On iPhone/iPad, add Tasks to the Home Screen first; Android Chrome supports device notifications.');$('#enable-notifications').disabled=true;return}try{deviceId=localStorage.getItem(DEVICE);if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem(DEVICE,deviceId)}}catch{setStatus('Browser storage is unavailable; device notifications cannot be configured.');$('#enable-notifications').disabled=true;return}
-$('#enable-notifications').onclick=async()=>{const button=$('#enable-notifications');button.disabled=true;try{
- // Permission must be requested directly from a user gesture, before network awaits.
- const permission=await Notification.requestPermission();if(permission!=='granted')throw Error(permission==='denied'?'Permission blocked. Allow notifications in this site’s browser settings.':'Permission was not granted.');
- registration=await navigator.serviceWorker.register('sw.js',{scope:'./',updateViaCache:'none'});await navigator.serviceWorker.ready;const config=await api();
- subscription=await registration.pushManager.getSubscription();if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes(config.publicKey)});
- await api({action:'subscribe',subscription:subscription.toJSON()});ready=true;buttons();await sync();
-}catch(e){ready=false;buttons();setStatus(e.message||'Could not enable notifications.')}finally{button.disabled=false}};
-$('#disable-notifications').onclick=async()=>{const button=$('#disable-notifications');button.disabled=true;try{await api({action:'disable'});if(subscription)await subscription.unsubscribe();subscription=null;ready=false;buttons();setStatus('Device reminders disabled. Notification permission can also be changed in your browser settings.')}catch(e){setStatus('Could not disable server reminders: '+e.message)}finally{button.disabled=false}};
-$('#test-notification').onclick=async()=>{const button=$('#test-notification');button.disabled=true;try{const result=await api({action:'test'});setStatus(result.message)}catch(e){setStatus('Test failed: '+e.message)}finally{buttons()}};
-window.addEventListener('online',sync);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ready)sync()});
-try{registration=await navigator.serviceWorker.getRegistration(new URL('./',location.href).href);subscription=await registration?.pushManager.getSubscription();if(subscription&&Notification.permission==='granted'){const config=await api();ready=config.subscribed;if(ready){buttons();await sync();return}}buttons();setStatus(Notification.permission==='denied'?'Notifications are blocked in browser settings.':'Enable notifications on each device that should receive Tasks reminders.')}catch(e){setStatus('Notifications unavailable: '+e.message)}buttons();
+async function action(fn){if(busy)return;generation++;busy=true;buttons();try{await fn()}catch(e){await recover(e);setStatus(e.message||'Could not configure notifications.')}finally{busy=false;buttons()}}
+function activated(){let timer;return Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Notification setup timed out. Reload Tasks, sign in if asked, and try Enable notifications again.')),15000)})]).finally(()=>clearTimeout(timer))}
+export async function initNotifications(readTasks){
+ getTasks=readTasks;
+ const supported='serviceWorker'in navigator&&'PushManager'in window&&'Notification'in window&&window.isSecureContext;
+ if(!supported){setStatus('Web Push is unavailable here. Open this page in Android Chrome (not an in-app browser). On iPhone/iPad, add Tasks to the Home Screen first.');$('#enable-notifications').disabled=true;return}
+ try{deviceId=localStorage.getItem(DEVICE);if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem(DEVICE,deviceId)}}catch{setStatus('Browser storage is unavailable; device notifications cannot be configured.');$('#enable-notifications').disabled=true;return}
+ $('#enable-notifications').onclick=()=>action(async()=>{
+  // Run directly from the click, before any network await, for mobile permission rules.
+  const permission=await Notification.requestPermission();if(permission!=='granted')throw Error(permission==='denied'?'Permission blocked. Allow notifications for this site in browser settings and allow Chrome notifications in Android Settings.':'Permission was not granted. Tap Enable notifications to try again.');
+  setStatus('Connecting this device…');registration=await navigator.serviceWorker.register('sw.js',{scope:'./',updateViaCache:'none'});await activated();const config=await api();
+  subscription=await registration.pushManager.getSubscription();
+  if(subscription&&!sameKey(subscription,config.publicKey)){await subscription.unsubscribe();subscription=null}
+  if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(config.publicKey)});
+  await api({action:'subscribe',subscription:subscription.toJSON()});ready=true;await sync();
+ });
+ $('#disable-notifications').onclick=()=>action(async()=>{
+  await api({action:'disable'});ready=false;clearTimeout(syncTimer);if(subscription)await subscription.unsubscribe();subscription=null;setStatus('Device reminders disabled. Notification permission can also be changed in your browser settings.');
+ });
+ $('#test-notification').onclick=()=>action(async()=>{
+  setStatus('Sending test notification…');const result=await api({action:'test'});setStatus(result.message+' Check your phone’s notification tray.');
+ });
+ window.addEventListener('online',()=>{if(!busy)sync()});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ready&&!busy)sync()});
+ const start=generation;
+ try{
+  const reg=await navigator.serviceWorker.getRegistration(new URL('./',location.href).href),sub=await reg?.pushManager.getSubscription();
+  if(start!==generation)return;
+  if(sub&&Notification.permission==='granted'){
+   const config=await api();if(start!==generation)return;registration=reg;subscription=sub;
+   ready=config.subscribed&&sameKey(sub,config.publicKey);buttons();
+   if(ready){await sync();return}
+   setStatus('This device needs to reconnect. Tap Enable notifications, then Send test.');return;
+  }
+  setStatus(Notification.permission==='denied'?'Notifications are blocked. Allow this site in browser settings and allow the browser’s notifications in Android Settings.':'Enable notifications on each device, then Send test and check its notification tray.');
+ }catch(e){if(start===generation)setStatus('Notifications unavailable: '+e.message)}finally{buttons()}
 }
