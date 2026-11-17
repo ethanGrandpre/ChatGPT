@@ -1,5 +1,5 @@
 const DEVICE='dock-tasks-device-v1';
-let getTasks,registration,subscription,deviceId,syncTimer,syncing=false,dirty=false,ready=false,busy=false,generation=0;
+let getTasks,registration,subscription,deviceId,syncTimer,syncing=false,dirty=false,ready=false,busy=false,generation=0,detailsSaved=true;
 const $=s=>document.querySelector(s),setStatus=t=>$('#notification-status').textContent=t;
 async function api(data){
  const response=await fetch('/api/tasks-push?deviceId='+encodeURIComponent(deviceId||''),data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,deviceId})}:{cache:'no-store'});
@@ -9,15 +9,16 @@ async function api(data){
 function keyBytes(key){const raw=atob(key.replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(raw,c=>c.charCodeAt(0))}
 function sameKey(sub,key){const existing=sub?.options?.applicationServerKey;if(!existing)return true;const a=new Uint8Array(existing),b=keyBytes(key);return a.length===b.length&&a.every((v,i)=>v===b[i])}
 function buttons(){const on=!!subscription&&ready;$('#enable-notifications').hidden=on;$('#enable-notifications').disabled=busy;$('#disable-notifications').hidden=!on;$('#disable-notifications').disabled=busy;$('#test-notification').disabled=busy}
-function reminders(){const now=Date.now();return getTasks().filter(t=>t.status!=='done'&&Number.isFinite(t.remindAt)&&t.remindAt>now-86400000&&t.remindAt<=now+366*86400000).map(t=>({id:t.id,at:t.remindAt}))}
+function reminders(){const now=Date.now();return getTasks().filter(t=>t.status!=='done'&&Number.isFinite(t.remindAt)&&t.remindAt>now-86400000&&t.remindAt<=now+366*86400000).map(t=>({id:t.id,at:t.remindAt,title:t.title,due:t.due||''}))}
 async function recover(error){if(error.status===409){ready=false;if(error.code==='subscription_expired'){try{await subscription?.unsubscribe()}catch{}subscription=null}buttons()}}
+async function saveDetails(items=reminders()){try{await DockTaskReminders.replace(items);detailsSaved=true}catch{detailsSaved=false}}
 async function sync(){
  if(!ready||!subscription)return;if(syncing){dirty=true;return}syncing=true;setStatus('Syncing reminders…');
- try{const result=await api({action:'schedule',reminders:reminders()});if(ready)setStatus(`${result.scheduled} reminder${result.scheduled===1?'':'s'} scheduled on this device. Delivery may be delayed by the OS.`)}
+ try{const items=reminders();await saveDetails(items);const result=await api({action:'schedule',reminders:items.map(({id,at})=>({id,at}))});if(ready)setStatus(`${result.scheduled} reminder${result.scheduled===1?'':'s'} scheduled on this device. ${detailsSaved?'Notifications include task names and due dates.':'Task details could not be saved; notifications will use a generic message.'} Delivery may be delayed by the OS.`)}
  catch(e){await recover(e);setStatus('Reminders not synced: '+e.message)}
  finally{syncing=false;if(dirty){dirty=false;sync()}}
 }
-export function tasksChanged(){clearTimeout(syncTimer);syncTimer=setTimeout(sync,500)}
+export function tasksChanged(){if(ready)saveDetails();clearTimeout(syncTimer);syncTimer=setTimeout(sync,500)}
 async function action(fn){if(busy)return;generation++;busy=true;buttons();try{await fn()}catch(e){await recover(e);setStatus(e.message||'Could not configure notifications.')}finally{busy=false;buttons()}}
 function activated(){let timer;return Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Notification setup timed out. Reload Tasks, sign in if asked, and try Enable notifications again.')),15000)})]).finally(()=>clearTimeout(timer))}
 export async function initNotifications(readTasks){
@@ -36,7 +37,7 @@ export async function initNotifications(readTasks){
  }
  $('#enable-notifications').onclick=()=>action(enable);
  $('#disable-notifications').onclick=()=>action(async()=>{
-  await api({action:'disable'});ready=false;clearTimeout(syncTimer);if(subscription)await subscription.unsubscribe();subscription=null;setStatus('Device reminders disabled. Notification permission can also be changed in your browser settings.');
+  await api({action:'disable'});ready=false;await DockTaskReminders.clear().catch(()=>{});clearTimeout(syncTimer);if(subscription)await subscription.unsubscribe();subscription=null;setStatus('Device reminders disabled. Notification permission can also be changed in your browser settings.');
  });
  $('#test-notification').onclick=()=>action(async()=>{
   if(!ready||!subscription)await enable();
@@ -46,7 +47,7 @@ export async function initNotifications(readTasks){
  window.addEventListener('online',()=>{if(!busy)sync()});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ready&&!busy)sync()});
  const start=generation;
  try{
-  const reg=await navigator.serviceWorker.getRegistration(new URL('./',location.href).href),sub=await reg?.pushManager.getSubscription();
+  let reg=await navigator.serviceWorker.getRegistration(new URL('./',location.href).href);if(reg){try{reg=await navigator.serviceWorker.register('sw.js',{scope:'./',updateViaCache:'none'})}catch{}}const sub=await reg?.pushManager.getSubscription();
   if(start!==generation)return;
   if(sub&&Notification.permission==='granted'){
    const config=await api();if(start!==generation)return;registration=reg;subscription=sub;

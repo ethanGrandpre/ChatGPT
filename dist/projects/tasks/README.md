@@ -6,3 +6,5 @@ Tasks save in localStorage under dock-tasks-v1. Data is local to this origin/dev
 
 ## Notifications
 Device notifications are opt-in. Use Enable notifications, then Test notification and check the OS notification tray. Set a task's Remind me date/time to schedule a push. Reminders are server-scheduled even while the Tasks tab is closed; cancellations need an internet connection to sync. Delivery is subject to browser/OS/network settings. Read NOTIFICATIONS.md for privacy, platform limitations and server details.
+
+Reminder notifications show the task name and optional due date using a local IndexedDB mirror, including when Tasks is closed. Only reminder IDs/times travel to the server; titles and dates remain on the device. Refresh Tasks once after deployment to update the background worker.
