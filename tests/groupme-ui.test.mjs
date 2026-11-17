@@ -21,18 +21,18 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const groupResponse=(url,list,history=[])=>Response.json({release:'groupme-notify-emoji-1',response:url.endsWith('status')?{name:'Owner',id:'1'}:url.includes('messages?')?{messages:history}:list});
 test('unread badges survive returning to Dock and clear only after viewing the latest messages',async()=>{
  const local=new Map();let count=10,last='10';const network=async url=>groupResponse(url,[{id:'123',name:'Family',messages:{count,last_message_id:last}}],[{id:last,name:'Friend',text:'Latest',created_at:1}]);
- const first=await page(network,{local});assert.equal(first.get('groups').children[0].children.length,0);
- count=13;last='13';const returned=await page(network,{local});assert.equal(returned.get('groups').children[0].children[0].textContent,'3');
- returned.get('groups').children[0].onclick();await tick();assert.equal(returned.get('groups').children[0].children.length,0);
- returned.context.window.matchMedia=()=>({matches:false});returned.get('conversation-back').onclick();count=15;last='15';await returned.get('refresh-groups').onclick();assert.equal(returned.get('groups').children[0].children[0].textContent,'2');
- await vm.runInContext('loadMessages(false,true)',returned.context);assert.equal(returned.get('groups').children[0].children[0].textContent,'2');
- returned.get('groups').children[0].onclick();assert.equal(returned.get('groups').children[0].children.length,0);
+ const first=await page(network,{local});assert.equal(first.get('groups').children[0].children.filter(x=>x.className==='unread-badge').length,0);
+ count=13;last='13';const returned=await page(network,{local});assert.equal(returned.get('groups').children[0].children.find(x=>x.className==='unread-badge').textContent,'3');
+ returned.get('groups').children[0].onclick();await tick();assert.equal(returned.get('groups').children[0].children.filter(x=>x.className==='unread-badge').length,0);
+ returned.context.window.matchMedia=()=>({matches:false});returned.get('conversation-back').onclick();count=15;last='15';await returned.get('refresh-groups').onclick();assert.equal(returned.get('groups').children[0].children.find(x=>x.className==='unread-badge').textContent,'2');
+ await vm.runInContext('loadMessages(false,true)',returned.context);assert.equal(returned.get('groups').children[0].children.find(x=>x.className==='unread-badge').textContent,'2');
+ returned.get('groups').children[0].onclick();assert.equal(returned.get('groups').children[0].children.filter(x=>x.className==='unread-badge').length,0);
 });
 test('unread counts stay while scrolling history and deleted-message count changes never become negative',async()=>{
  const local=new Map([['dock-groupme-read-v1',JSON.stringify({'groups:123':{count:10,at:1}})]]);let count=12;const p=await page(async url=>groupResponse(url,[{id:'123',name:'Family',messages:{count,last_message_id:'12'}}],[{id:'12',text:'Latest',created_at:1}]),{local});
- assert.equal(p.get('groups').children[0].children[0].textContent,'2');p.get('groups').children[0].onclick();await tick();
- p.get('messages').scrollHeight=1000;p.get('messages').clientHeight=100;p.get('messages').scrollTop=20;count=14;await p.get('refresh-groups').onclick();assert.equal(p.get('groups').children[0].children[0].textContent,'2');
- count=8;await p.get('refresh-groups').onclick();assert.equal(p.get('groups').children[0].children.length,0);
+ assert.equal(p.get('groups').children[0].children.find(x=>x.className==='unread-badge').textContent,'2');p.get('groups').children[0].onclick();await tick();
+ p.get('messages').scrollHeight=1000;p.get('messages').clientHeight=100;p.get('messages').scrollTop=20;count=14;await p.get('refresh-groups').onclick();assert.equal(p.get('groups').children[0].children.find(x=>x.className==='unread-badge').textContent,'2');
+ count=8;await p.get('refresh-groups').onclick();assert.equal(p.get('groups').children[0].children.filter(x=>x.className==='unread-badge').length,0);
 });
 test('settings persist layout and refresh interval, with validation and cooldown preserved',async()=>{
  const calls=[],p=await page(async url=>{calls.push(url);return groupResponse(url,[{id:'123',name:'Family'}])});p.get('display-settings').onclick();assert.equal(p.get('display-dialog').open,true);
