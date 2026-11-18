@@ -13,14 +13,20 @@ $('voice-attach').onclick=async()=>{
  const version=generation,uploadGroup=group,clip=blob,controller=new AbortController();uploadController=controller;uploading=true;
  const deadline=setTimeout(()=>controller.abort(),90000);
  for(const id of ['voice-record','voice-file','voice-attach'])$(id).disabled=true;
- $('voice-status').textContent='Uploading voice clip… Keep this dialog open to attach it.';
+ $('voice-status').textContent='Preparing voice clip…';
  try{
+  const metadata=await clipMetadata(clip);if(version!==generation||!$('voice-dialog').open)return;$('voice-status').textContent='Uploading voice clip… Keep this dialog open to attach it.';
   const response=await fetch('/api/groupme/audio?group='+encodeURIComponent(uploadGroup),{method:'POST',credentials:'same-origin',headers:{'Content-Type':clip.type},body:clip,signal:controller.signal});
   let data;try{data=await response.json()}catch{throw Error('Dock sign-in expired or the upload response was unreadable. Sign in again, then retry this clip.')}
   if(version!==generation||!$('voice-dialog').open)return;
   if(!response.ok)throw Error(data.error||'Upload failed.');
-  window.DockGroupMeAudioTarget.attach(uploadGroup,data.response.url);$('voice-dialog').close();
+  window.DockGroupMeAudioTarget.attach(uploadGroup,data.response.url,metadata);$('voice-dialog').close();
  }catch(error){if(version===generation)$('voice-status').textContent=['TypeError','TimeoutError','AbortError'].includes(error.name)?'The upload connection was interrupted. Your clip is kept here. Reconnect, then choose Attach clip again.':error.message}
  finally{clearTimeout(deadline);if(version===generation){uploading=false;uploadController=null;for(const id of ['voice-record','voice-file'])$(id).disabled=false;$('voice-attach').disabled=!blob}}
 };
 $('voice-close').onclick=()=>$('voice-dialog').close();$('voice-dialog').addEventListener('close',discard);window.addEventListener('pagehide',discard);
+
+async function clipMetadata(clip){
+ const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)throw Error('This browser cannot read the clip duration. Try a supported browser or another audio file.');
+ const context=new AudioContext();try{const decoded=await context.decodeAudioData(await clip.arrayBuffer());if(!Number.isFinite(decoded.duration)||decoded.duration<=0||decoded.duration>3600)throw Error('Use an audio clip under one hour.');const samples=decoded.getChannelData(0),peaks=[];for(let i=0;i<64;i++){const start=Math.floor(i*samples.length/64),end=Math.floor((i+1)*samples.length/64);let max=0;for(let j=start,step=Math.max(1,Math.floor((end-start)/2048));j<end;j+=step)max=Math.max(max,Math.abs(samples[j]));peaks.push(Math.round(Math.min(1,max)*100)/100)}return {duration:Math.max(1,Math.ceil(decoded.duration)),peaks:JSON.stringify(peaks)}}catch(error){throw Error('Could not read the audio clip. Try recording again or choose a playable audio file.')}finally{await context.close().catch(()=>{})}
+}

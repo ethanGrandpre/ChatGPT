@@ -64,6 +64,7 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
     }else if(++media>1||!((attachment.type==='audio'&&audioURL(attachment.url))||(attachment.type==='image'&&typeof attachment.url==='string'&&/^https:\/\/i\.groupme\.com\/[^\s]+$/.test(attachment.url))))return failure('Invalid media attachment.','INPUT',400);
    }
   }
+  if(body.attachments)for(let i=0;i<body.attachments.length;i++){const a=body.attachments[i];if(a.type!=='audio')continue;let peaks;try{peaks=typeof a.peaks==='string'?JSON.parse(a.peaks):a.peaks}catch{}if(!Number.isInteger(a.duration)||a.duration<1||a.duration>3600||!Array.isArray(peaks)||!peaks.length||peaks.length>256||!peaks.every(n=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1))return failure('The attached clip is missing valid duration or waveform data. Remove it and attach the recording again.','AUDIO_METADATA',400);body.attachments[i]={type:'audio',url:audioURL(a.url),duration:a.duration,peaks:JSON.stringify(peaks)}}
   path='/v3/groups/'+target+'/messages';body={message:{source_guid:body.source,text:body.text.trim(),...(body.attachments?.length?{attachments:body.attachments}:{})}};
  }else return failure('Unknown GroupMe action.','ROUTE',404);
  try{
@@ -81,6 +82,7 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
   const response=await networkFetch(upstream);
   if(response.status===304&&['messages','direct-messages'].includes(action))return reply({response:action==='direct-messages'?{direct_messages:[]}:{messages:[]}});
   if(!response.ok){
+   if(response.status===400&&action==='send'&&body?.message?.attachments?.some(a=>a.type==='audio')){let detail='';try{const raw=await response.text();if(raw.length<16000){const errors=JSON.parse(raw)?.meta?.errors;if(Array.isArray(errors))detail=errors.filter(e=>typeof e==='string').slice(0,2).join(' ')}}catch{}for(const secret of [token,encodeURIComponent(token)])detail=detail.split(secret).join('[redacted]');detail=detail.replace(/https?:\/\/[^\s]+/gi,'[link]').replace(/[\x00-\x1f\x7f]/g,' ').slice(0,250);return failure('GroupMe rejected the audio message.'+(detail?' GroupMe says: '+detail:' Try attaching a newly recorded clip.'),'AUDIO_MESSAGE_REJECTED',400)}
    if(response.status===401)return failure('GroupMe rejected the saved token. Copy Your Access Token (not Client ID), replace the Worker secret, and deploy.','TOKEN_REJECTED');
    if(response.status===403){
     let detail='';try{
