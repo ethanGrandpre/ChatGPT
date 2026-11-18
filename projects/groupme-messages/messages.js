@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id);let mode='groups',groups=[],page=1,curre
 let titlePhotoSignature='';
 let ownerId='',replyTarget=null,messageQuery='',newMessageCount=0,listSignature='',searchScrollTop=0,deferredRender=false;const deletedMessages=new Set();
 let initialChat;try{const value=new URL(location.href).searchParams.get('chat');if(/^(groups|dms):\d{1,30}$/.test(value||''))initialChat=value}catch{}
-let mentionEntries=[];let pendingAudio=null;let pendingPhoto=null;let keyboardSend=false;
+let mentionEntries=[];let pendingAudio=null;let pendingPhoto=null;let sendNotice=0;let followingLatest=true;let keyboardSend=false;
 let connected=false,reading=0,listing=0,retryAt=0,liveTimer,lastList=0,lastAttempt=0,liveDelay=5000,stopped=false;
 const status=text=>{$('status').textContent=text;$('list-status').textContent=text};
 async function api(action,options={}){
@@ -56,6 +56,7 @@ async function loadMessages(older=false,live=false){
   const known=new Map(messages.map(m=>[String(m.id),m]));const fresh=incoming.filter(m=>!known.has(String(m.id)));const next=(older||live)?[...new Map([...messages,...incoming.map(m=>({...known.get(String(m.id)),...m}))].map(m=>[String(m.id),m])).values()]:incoming;
   if(JSON.stringify(next)!==JSON.stringify(messages)||!root.children.length||(deferredRender&&!mediaBusy)){const oldHeight=root.scrollHeight||0;messages=next;if(mediaBusy){deferredRender=true;$('new-messages').hidden=false;$('new-messages').textContent='Updates waiting · Show latest'}else{renderMessages();root.scrollTop=older?top+Math.max(0,(root.scrollHeight||0)-oldHeight):live&&!nearBottom?top:root.scrollHeight}}
   if(live&&(!nearBottom||mediaBusy)&&fresh.length){newMessageCount+=fresh.length;$('new-messages').hidden=false;$('new-messages').textContent=newMessageCount+' new messages · Jump to latest'}else if(nearBottom&&!messageQuery&&!deferredRender)resetNewMessages();
+  followingLatest=nearLatest();
   if(!live){$('older').hidden=incoming.length<40;status('Updated '+new Date().toLocaleTimeString());if(!older)root.scrollTop=root.scrollHeight}
   if(!older&&!deferredRender)markRead();
   if(live&&$('status').dataset.error==='true'){status('Reconnected · messages are updating automatically.');$('status').dataset.error='false'}
@@ -72,13 +73,13 @@ $('text').onkeydown=event=>{
  keyboardSend=true;try{$('compose').requestSubmit()}finally{keyboardSend=false}
 };
 $('compose').onsubmit=async event=>{
- event.preventDefault();const restoreFocus=keyboardSend;if(mode==='dms'){$('send-status').textContent='DMs are read-only because GroupMe does not allow DM sending through its Developer API.';return}const raw=$('text').value,draft=raw.trim(),text=replyPrefix()+draft;const leading=raw.length-raw.trimStart().length,mentions=window.DockGroupMeMentions?.attachment(raw,replyPrefix());if(mentions)mentions.loci=mentions.loci.map(([start,length])=>[start-leading,length]);const attachments=[...(pendingAudio?[{type:'audio',url:pendingAudio}]:pendingPhoto?[{type:'image',url:pendingPhoto}]:[]),...(mentions?[mentions]:[])];if((!draft&&!pendingPhoto&&!pendingAudio)||!current||busy)return;if(text.length>1000){$('send-status').textContent='Shorten your reply to fit the 1,000 character message limit.';return}
+ event.preventDefault();const restoreFocus=keyboardSend,notice=++sendNotice;if(mode==='dms'){$('send-status').textContent='DMs are read-only because GroupMe does not allow DM sending through its Developer API.';return}const raw=$('text').value,draft=raw.trim(),text=replyPrefix()+draft;const leading=raw.length-raw.trimStart().length,mentions=window.DockGroupMeMentions?.attachment(raw,replyPrefix());if(mentions)mentions.loci=mentions.loci.map(([start,length])=>[start-leading,length]);const attachments=[...(pendingAudio?[{type:'audio',url:pendingAudio}]:pendingPhoto?[{type:'image',url:pendingPhoto}]:[]),...(mentions?[mentions]:[])];if((!draft&&!pendingPhoto&&!pendingAudio)||!current||busy)return;if(text.length>1000){$('send-status').textContent='Shorten your reply to fit the 1,000 character message limit.';return}
  if(text!==lastText){source=crypto.randomUUID();lastText=text}
  busy=true;$('send').disabled=true;$('text').disabled=true;$('send-status').textContent='Sending…';
  try{
   await api('send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group:String(current.id),text,source,...(attachments.length?{attachments}:{})})});
   mentionEntries=[];pendingAudio=null;pendingPhoto=null;$('remove-photo').hidden=true;$('attachment-status').textContent='';$('text').value='';window.DockGroupMeMentions?.reset();window.DockGroupMeTyping?.draftChanged();clearReply();source=crypto.randomUUID();lastText='';saveDraft();$('send-status').textContent='Sent.';
-  const refreshed=await loadMessages();if(!refreshed)$('send-status').textContent='Sent. Conversation refresh failed; use Refresh to check for updates. Do not resend.';
+  const refreshed=await loadMessages();if(refreshed)setTimeout(()=>{if(sendNotice===notice&&$('send-status').textContent==='Sent.')$('send-status').textContent=''},2500);if(!refreshed)$('send-status').textContent='Sent. Conversation refresh failed; use Refresh to check for updates. Do not resend.';
  }catch(e){saveDraft();$('send-status').textContent=e.message+' Your draft is still here. No automatic resend was attempted.'}
  finally{busy=false;updateComposer();$('text').disabled=false;const focus=document.activeElement;if(restoreFocus&&document.visibilityState==='visible'&&$('chat-app').dataset.panel==='conversation'&&!document.querySelector?.('dialog[open]')&&(!focus||focus===document.body||focus===$('text')||focus===$('send')))$('text').focus({preventScroll:true})}
 };
@@ -109,14 +110,14 @@ function appendAttachments(row,attachments){
  for(const item of attachments.slice(0,20)){
   if(!item||typeof item!=='object'||item.type==='mentions')continue;
   const url=attachmentURL(item.url||item.video_url||item.source_url),mediaURL=attachmentURL(item.url||item.video_url||item.source_url,true),kind=item.type;
-  const box=document.createElement('div');box.className='message-attachment';
+  const box=document.createElement('div');box.className='message-attachment';const conversation=current?.id;
   const fallback=document.createElement('a');fallback.textContent=kind==='video'?'Open video ↗':kind==='image'?'Open image ↗':'Open attachment ↗';fallback.target='_blank';fallback.rel='noopener noreferrer';
   if(url)fallback.href=url;else{fallback.href='https://web.groupme.com/';fallback.textContent='View '+(kind==='video'?'video':kind==='image'?'image':'attachment')+' in GroupMe ↗'}
   if(kind==='audio'&&url){const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src='/api/groupme/audio?url='+encodeURIComponent(url);audio.setAttribute('aria-label','Voice clip');box.append(audio);audio.onerror=()=>{fallback.textContent='Audio unavailable · Open in GroupMe';fallback.href='https://web.groupme.com/'};}else if(kind==='video'&&mediaURL){
-   const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='none';video.src=mediaURL;video.onended=()=>{if(deferredRender){const top=$('messages').scrollTop,follow=nearLatest();renderMessages();$('messages').scrollTop=follow?$('messages').scrollHeight:top;resetNewMessages();markRead()}};video.setAttribute('aria-label','Video from this conversation');const poster=attachmentURL(item.preview_url,true);if(poster)video.poster=poster;
+   const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='none';video.src=mediaURL;video.onended=()=>{if(deferredRender){const top=$('messages').scrollTop,follow=nearLatest();renderMessages();$('messages').scrollTop=follow?$('messages').scrollHeight:top;resetNewMessages();markRead()}};video.onloadedmetadata=()=>mediaReady(row,conversation);video.setAttribute('aria-label','Video from this conversation');const poster=attachmentURL(item.preview_url,true);if(poster)video.poster=poster;
    const note=document.createElement('small');note.textContent='Tap Play to load video.';video.onerror=()=>{note.textContent='This video could not play here. Open it directly or view it in GroupMe.'};box.append(video,note);
   }else if(kind==='image'&&mediaURL){
-   const image=document.createElement('img');image.src=mediaURL;image.alt='Image shared in this conversation';image.loading='lazy';image.decoding='async';image.referrerPolicy='no-referrer';const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.append(image);image.onerror=()=>{const parsed=new URL(mediaURL);if(parsed.hostname==='m.groupme.com'&&parsed.pathname.startsWith('/uploads/')&&!image.dataset.retried){image.dataset.retried='true';image.src='/api/groupme/image?url='+encodeURIComponent(mediaURL);return}link.hidden=true;fallback.textContent='Image unavailable here · Open image ↗'};box.append(link);
+   const image=document.createElement('img');image.src=mediaURL;image.alt='Image shared in this conversation';image.loading='lazy';image.decoding='async';image.referrerPolicy='no-referrer';image.onload=()=>mediaReady(row,conversation);const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.append(image);image.onerror=()=>{const parsed=new URL(mediaURL);if(parsed.hostname==='m.groupme.com'&&parsed.pathname.startsWith('/uploads/')&&!image.dataset.retried){image.dataset.retried='true';image.src='/api/groupme/image?url='+encodeURIComponent(mediaURL);return}link.hidden=true;fallback.textContent='Image unavailable here · Open image ↗'};box.append(link);
   }else if(kind&&['image','video','file'].includes(kind)){
    const note=document.createElement('small');note.textContent=kind==='video'?'This video needs to be opened directly.':kind==='file'?'File attachment':'Image attachment';box.append(note);
   }else{
@@ -187,7 +188,7 @@ async function reactToMessage(message,liked,emoji='❤️'){
 
 async function deleteMessage(message){
  if(busy||mode!=='groups'||!current||String(message.user_id)!==ownerId)return;
- if(!confirm('Delete this message from GroupMe? This cannot be undone.'))return;busy=true;updateComposer();const group=current.id;
+ if(!(await confirmMessageDeletion(message)))return;busy=true;updateComposer();const group=current.id;
  try{await api('delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group,message:String(message.id)})});deletedMessages.add(group+':'+message.id);if(replyTarget?.id===message.id){clearReply();saveDraft()}renderMessages();status('Message deleted from GroupMe.')}
  catch(e){status(e.message+' Nothing was removed from this view.')}finally{busy=false;updateComposer()}
 }
@@ -207,8 +208,8 @@ $('find-messages').onclick=()=>{const open=$('message-search-bar').hidden;$('mes
 $('message-search').oninput=()=>{messageQuery=$('message-search').value.trim().toLocaleLowerCase();renderMessages()};
 $('close-message-search').onclick=()=>{clearMessageSearch();renderMessages();$('messages').scrollTop=searchScrollTop;$('find-messages').focus()};
 $('message-search').onkeydown=e=>{if(e.key==='Escape')$('close-message-search').onclick()};
-$('new-messages').onclick=()=>{if(messageQuery)clearMessageSearch();renderMessages();$('messages').scrollTop=$('messages').scrollHeight;resetNewMessages();markRead()};
-$('messages').onscroll=()=>{if(nearLatest()&&!deferredRender){resetNewMessages();markRead()}};
+$('new-messages').onclick=()=>{if(messageQuery)clearMessageSearch();renderMessages();$('messages').scrollTop=$('messages').scrollHeight;followingLatest=true;resetNewMessages();markRead()};
+$('messages').onscroll=()=>{followingLatest=nearLatest();if(followingLatest&&!deferredRender){resetNewMessages();markRead()}else if(current&&messages.length&&!messageQuery&&!deferredRender){$('new-messages').hidden=false;$('new-messages').textContent=newMessageCount?newMessageCount+' new messages · Jump to latest':'Jump to latest'}};
 window.addEventListener('storage',event=>{if(event.key===DISPLAY_KEY||event.key===null){displayPrefs=normalizeDisplay(readObject(DISPLAY_KEY));applyDisplay();renderMessages();liveDelay=displayPrefs.interval*1000;scheduleLive()}if(event.key===READ_KEY||event.key===null){readState=readObject(READ_KEY);renderGroups()}});
 
 function collapseConversationTools(){$('chat-app').dataset.tools='closed';$('chat-tools').setAttribute('aria-expanded','false')}
@@ -245,3 +246,14 @@ $('photo-file').onchange=async()=>{
 window.DockGroupMeAudioTarget={current:()=>mode==='groups'?current?.id:null,attach:(group,url)=>{if(busy||mode!=='groups'||current?.id!==group)throw Error('Return to the original group before attaching.');pendingAudio=url;pendingPhoto=null;source=crypto.randomUUID();$('attachment-status').textContent='Voice clip · Ready to send';$('remove-photo').hidden=false;saveDraft()}};
 
 window.DockGroupMeMentionState={get:()=>({group:mode==='groups'?current?.id:null,entries:mentionEntries,members:groups.find(g=>g.id===current?.id)?.members||[]}),set:entries=>{mentionEntries=entries}};
+
+function mediaReady(row,conversation){if(row.isConnected===false||current?.id!==conversation||!followingLatest||messageQuery)return;const follow=()=>{if(followingLatest&&!messageQuery&&current?.id===conversation){$('messages').scrollTop=$('messages').scrollHeight;resetNewMessages();markRead()}};if(window.requestAnimationFrame)window.requestAnimationFrame(follow);else follow()}
+
+let resolveDeletion=null;
+function confirmMessageDeletion(message){if(resolveDeletion)return Promise.resolve(false);$('delete-preview').textContent=(message.text||'[Attachment]').slice(0,280);return new Promise(resolve=>{resolveDeletion=resolve;$('delete-dialog').showModal();$('delete-cancel').focus()})}
+function finishDeletion(accepted){const resolve=resolveDeletion;resolveDeletion=null;$('delete-dialog').close();resolve?.(accepted)}
+$('delete-cancel').onclick=()=>finishDeletion(false);$('delete-confirm').onclick=()=>finishDeletion(true);$('delete-dialog').oncancel=event=>{event.preventDefault();finishDeletion(false)};$('delete-dialog').onclose=()=>{if(resolveDeletion){const resolve=resolveDeletion;resolveDeletion=null;resolve(false)}};
+
+// A mobile menu closes before opening settings; restore to its visible trigger.
+function restoreDialogFocus(){const active=document.activeElement;if(active&&active!==document.body&&active.getClientRects?.().length&&!active.closest?.('dialog'))return;const mobile=window.matchMedia?.('(max-width:650px)').matches,conversation=$('chat-app').dataset.panel==='conversation';const target=mobile&&conversation?$('chat-tools'):$('display-settings');if(target.getClientRects?.().length)target.focus({preventScroll:true})}
+for(const id of ['display-dialog','reaction-dialog','notifications-dialog','voice-dialog'])$(id).onclose=restoreDialogFocus;
