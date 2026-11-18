@@ -65,9 +65,10 @@ async function loadMessages(older=false,live=false){
 }
 $('text').onkeydown=event=>{
  if(window.DockGroupMeMentions?.keydown(event))return;
+ if(event.key==='Escape'&&replyTarget){event.preventDefault();clearReply();saveDraft();return}
  if(event.key!=='Enter'||event.shiftKey||event.isComposing||event.keyCode===229)return;
  event.preventDefault();
- if(event.repeat||busy||!current||mode==='dms'||!$('text').value.trim()||$('send').disabled)return;
+ if(event.repeat||busy||!current||mode==='dms'||!$('text').value.trim())return;
  keyboardSend=true;try{$('compose').requestSubmit()}finally{keyboardSend=false}
 };
 $('compose').onsubmit=async event=>{
@@ -79,7 +80,7 @@ $('compose').onsubmit=async event=>{
   mentionEntries=[];pendingAudio=null;pendingPhoto=null;$('remove-photo').hidden=true;$('attachment-status').textContent='';$('text').value='';window.DockGroupMeMentions?.reset();window.DockGroupMeTyping?.draftChanged();clearReply();source=crypto.randomUUID();lastText='';saveDraft();$('send-status').textContent='Sent.';
   const refreshed=await loadMessages();if(!refreshed)$('send-status').textContent='Sent. Conversation refresh failed; use Refresh to check for updates. Do not resend.';
  }catch(e){saveDraft();$('send-status').textContent=e.message+' Your draft is still here. No automatic resend was attempted.'}
- finally{busy=false;$('send').disabled=false;$('text').disabled=false;const focus=document.activeElement;if(restoreFocus&&document.visibilityState==='visible'&&$('chat-app').dataset.panel==='conversation'&&!document.querySelector?.('dialog[open]')&&(!focus||focus===document.body||focus===$('text')||focus===$('send')))$('text').focus({preventScroll:true})}
+ finally{busy=false;updateComposer();$('text').disabled=false;const focus=document.activeElement;if(restoreFocus&&document.visibilityState==='visible'&&$('chat-app').dataset.panel==='conversation'&&!document.querySelector?.('dialog[open]')&&(!focus||focus===document.body||focus===$('text')||focus===$('send')))$('text').focus({preventScroll:true})}
 };
 function switchMode(next){
  if(busy||mode===next)return;
@@ -98,10 +99,10 @@ function messageDay(seconds){const date=new Date(seconds*1000);if(Number.isNaN(d
 function applyDisplay(){for(const key of ['density','layout','width']){$('chat-app').dataset[key]=displayPrefs[key];$('display-'+key).value=displayPrefs[key]}$('display-emoji').checked=displayPrefs.emoji;$('refresh-interval').value=String(displayPrefs.interval);$('live-status').textContent='Live · checks every '+displayPrefs.interval+' sec'}
 function saveDisplay(){try{localStorage.setItem(DISPLAY_KEY,JSON.stringify(displayPrefs))}catch{status('Settings applied for this session; browser storage is unavailable.')}applyDisplay();const top=$('messages').scrollTop;renderMessages();$('messages').scrollTop=top}
 function initDisplay(){applyDisplay();$('display-settings').onclick=()=>$('display-dialog').showModal();$('display-close').onclick=()=>$('display-dialog').close();for(const key of ['density','layout','width'])$('display-'+key).onchange=()=>{displayPrefs[key]=$('display-'+key).value;saveDisplay()};$('display-emoji').onchange=()=>{displayPrefs.emoji=$('display-emoji').checked;saveDisplay()};$('refresh-interval').onchange=()=>{const value=Number($('refresh-interval').value);if(!Number.isInteger(value)||value<1||value>300){$('interval-status').textContent='Choose a whole number from 1 to 300 seconds.';return}displayPrefs.interval=value;liveDelay=value*1000;saveDisplay();$('interval-status').textContent='Saved. Active chats and conversation badges check every '+value+' seconds while this page is visible.';scheduleLive(liveDelay)};$('display-reset').onclick=()=>{displayPrefs={...displayDefaults};applyTextSize(14);try{localStorage.setItem(TEXT_SIZE_KEY,'14')}catch{}saveDisplay();liveDelay=5000;scheduleLive()}}
-function updateComposer(){const input=$('text'),length=(input.value||'').length+replyPrefix().length;$('message-count').textContent=length+' / 1000';$('message-count').dataset.over=String(length>1000);input.setAttribute('aria-invalid',String(length>1000));const minimum=window.matchMedia?.('(max-width:650px)').matches?44:68;input.style.height='0px';input.style.height=Math.min(144,Math.max(minimum,input.scrollHeight||minimum))+'px'}
+function updateComposer(){const input=$('text'),length=(input.value||'').length+replyPrefix().length;$('message-count').textContent=length+' / 1000';$('message-count').dataset.over=String(length>1000);$('compose').dataset.counter=length>=800?'visible':'quiet';input.setAttribute('aria-invalid',String(length>1000));$('send').disabled=busy||!current||mode!=='groups'||(!input.value.trim()&&!pendingPhoto&&!pendingAudio)||length>1000;const minimum=44;input.style.height='0px';input.style.height=Math.min(144,Math.max(minimum,input.scrollHeight||minimum))+'px'}
 function draftKey(){return mode+':'+current?.id}
-function saveDraft(){updateComposer();if(!current||mode!=='groups'){$('draft-status').textContent='';return}const key=draftKey(),text=$('text').value.slice(0,1000);if(text||replyTarget)drafts[key]={text,mentions:mentionEntries,reply:replyTarget,source,lastText,at:Date.now()};else delete drafts[key];const sorted=Object.entries(drafts).filter(([,d])=>d&&Date.now()-d.at<86400000).sort((a,b)=>b[1].at-a[1].at).slice(0,30);drafts=Object.fromEntries(sorted);let saved=true;try{sessionStorage.setItem(DRAFT_KEY,JSON.stringify(drafts))}catch{saved=false}$('draft-status').textContent=text||replyTarget?(saved?'Draft saved in this tab':'Draft kept for this session'):''}
-function restoreDraft(){mentionEntries=[];updateComposer();const d=drafts[draftKey()];$('draft-status').textContent='';if(mode!=='groups'||!d||Date.now()-d.at>86400000)return;$('text').value=typeof d.text==='string'?d.text.slice(0,1000):'';mentionEntries=Array.isArray(d.mentions)?d.mentions:[];replyTarget=d.reply&&typeof d.reply.name==='string'&&typeof d.reply.text==='string'?{id:d.reply.id,name:d.reply.name.slice(0,60),text:d.reply.text.slice(0,250)}:null;source=typeof d.source==='string'?d.source:crypto.randomUUID();lastText=typeof d.lastText==='string'?d.lastText:'';if(replyTarget){$('reply-bar').hidden=false;$('reply-preview').textContent='Quoted reply to '+replyTarget.name+': '+replyTarget.text.slice(0,120);$('text').maxLength=1000-replyPrefix().length}saveDraft()}
+function saveDraft(){updateComposer();if(!current||mode!=='groups'){$('draft-status').textContent='';return}const key=draftKey(),text=$('text').value.slice(0,1000);if(text||replyTarget||pendingPhoto||pendingAudio)drafts[key]={text,photo:pendingPhoto,audio:pendingAudio,mentions:mentionEntries,reply:replyTarget,source,lastText,at:Date.now()};else delete drafts[key];const sorted=Object.entries(drafts).filter(([,d])=>d&&Date.now()-d.at<86400000).sort((a,b)=>b[1].at-a[1].at).slice(0,30);drafts=Object.fromEntries(sorted);let saved=true;try{sessionStorage.setItem(DRAFT_KEY,JSON.stringify(drafts))}catch{saved=false}$('draft-status').textContent=text||replyTarget||pendingPhoto||pendingAudio?(saved?'Draft saved in this tab':'Draft kept for this session'):''}
+function restoreDraft(){mentionEntries=[];pendingPhoto=null;pendingAudio=null;$('remove-photo').hidden=true;$('attachment-status').textContent='';updateComposer();const d=drafts[draftKey()];$('draft-status').textContent='';if(mode!=='groups'||!d||Date.now()-d.at>86400000)return;$('text').value=typeof d.text==='string'?d.text.slice(0,1000):'';const photo=attachmentURL(d.photo),audio=attachmentURL(d.audio);pendingPhoto=photo&&new URL(photo).hostname==='i.groupme.com'?photo:null;pendingAudio=audio&&['m.groupme.com','v.groupme.com','a.groupme.com'].includes(new URL(audio).hostname)?audio:null;$('attachment-status').textContent=pendingAudio?'Voice clip · Ready to send':pendingPhoto?'Photo · Ready to send':'';$('remove-photo').hidden=!pendingPhoto&&!pendingAudio;mentionEntries=Array.isArray(d.mentions)?d.mentions:[];replyTarget=d.reply&&typeof d.reply.name==='string'&&typeof d.reply.text==='string'?{id:d.reply.id,name:d.reply.name.slice(0,60),text:d.reply.text.slice(0,250)}:null;source=typeof d.source==='string'?d.source:crypto.randomUUID();lastText=typeof d.lastText==='string'?d.lastText:'';if(replyTarget){$('reply-bar').hidden=false;$('reply-preview').textContent='Quoted reply to '+replyTarget.name+': '+replyTarget.text.slice(0,120);$('text').maxLength=1000-replyPrefix().length}saveDraft()}
 function attachmentURL(value,embed=false){try{const url=new URL(value);if(url.protocol!=='https:'||url.username||url.password)return null;if(embed&&!(['i.groupme.com','m.groupme.com','v.groupme.com','media.groupme.com'].includes(url.hostname)||/^(media[0-9]*|i)\.giphy\.com$/.test(url.hostname)))return null;return url.href}catch{return null}}
 function appendAttachments(row,attachments){
  if(!Array.isArray(attachments))return;
@@ -144,7 +145,7 @@ function unreadCount(group){const count=countFor(group),seen=readState[mode+':'+
 function markRead(){if(deferredRender||!current||!conversationVisible()||!nearLatest()||messageQuery)return;const group=groups.find(g=>g.id===current.id),count=group&&countFor(group);if(count===null||count===undefined)return;const latest=group.messages?.last_message_id;if(latest&&!messages.some(m=>String(m.id)===String(latest)))return;const key=mode+':'+current.id;if(readState[key]?.count!==count){readState[key]={count,at:Date.now()};persistRead();renderGroups()}}
 
 initDisplay();
-$('search').oninput=renderGroups;$('refresh-groups').onclick=()=>loadGroups();$('more-groups').onclick=()=>loadGroups(true);$('refresh').onclick=()=>loadMessages();$('older').onclick=()=>loadMessages(true);$('theme').onclick=()=>DockAppearance.toggleTheme();$('chat-settings').onclick=()=>{collapseConversationTools();$('display-dialog').showModal()};$('chat-tools').onclick=()=>{const open=$('chat-app').dataset.tools!=='open';$('chat-app').dataset.tools=open?'open':'closed';$('chat-tools').setAttribute('aria-expanded',String(open))};window.addEventListener('beforeunload',e=>{if($('text').value){e.preventDefault();e.returnValue=''}});loadGroups();
+$('search').oninput=renderGroups;$('refresh-groups').onclick=()=>loadGroups();$('more-groups').onclick=()=>loadGroups(true);$('refresh').onclick=()=>loadMessages();$('older').onclick=()=>loadMessages(true);$('theme').onclick=()=>DockAppearance.toggleTheme();$('chat-settings').onclick=()=>{collapseConversationTools();$('display-dialog').showModal()};$('chat-tools').onclick=()=>{const open=$('chat-app').dataset.tools!=='open';$('chat-app').dataset.tools=open?'open':'closed';$('chat-tools').setAttribute('aria-expanded',String(open))};window.addEventListener('beforeunload',e=>{if($('text').value||pendingPhoto||pendingAudio){e.preventDefault();e.returnValue=''}});loadGroups();
 
 function scheduleLive(delay=displayPrefs.interval*1000){clearTimeout(liveTimer);if(!stopped)liveTimer=setTimeout(pollLive,delay)}
 async function pollLive(){
@@ -175,20 +176,20 @@ let reactionMessage=null;
 function openReactions(message){if(busy)return;reactionMessage=message;const root=$('reaction-options');root.replaceChildren();for(const emoji of REACTION_EMOJI){const button=document.createElement('button');button.type='button';button.textContent=emoji;const selected=message.dock_reaction||(Array.isArray(message.favorited_by)&&message.favorited_by.map(String).includes(ownerId)?'❤️':null);button.setAttribute('aria-label','React '+emoji);button.setAttribute('aria-pressed',String(selected===emoji));button.onclick=()=>{$('reaction-dialog').close();reactToMessage(reactionMessage,selected===emoji,emoji)};root.append(button)}$('reaction-dialog').showModal()}
 $('reaction-close').onclick=()=>$('reaction-dialog').close();
 async function reactToMessage(message,liked,emoji='❤️'){
- if(busy||mode!=='groups'||!current||!message)return;busy=true;const id=current.id;
+ if(busy||mode!=='groups'||!current||!message)return;busy=true;updateComposer();const id=current.id;
  try{const result=await api('react',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group:id,message:String(message.id),liked:!liked,emoji})});
   if(result?.confirmed!==true||String(result.message_id)!==String(message.id))throw Error('The server did not confirm this GroupMe reaction.');
   const confirmedEmoji=result.emoji===undefined?(!liked?'❤️':null):result.emoji;
   messages=messages.map(m=>String(m.id)===String(message.id)?{...m,...(Array.isArray(result.favorited_by)?{favorited_by:result.favorited_by}:{}),dock_reaction:confirmedEmoji}:m);
   const top=$('messages').scrollTop;renderMessages();$('messages').scrollTop=top;status(confirmedEmoji?'Reaction '+confirmedEmoji+' confirmed by GroupMe.':'Reaction removal confirmed by GroupMe.');
- }catch(e){status(e.message)}finally{busy=false}
+ }catch(e){status(e.message)}finally{busy=false;updateComposer()}
 }
 
 async function deleteMessage(message){
  if(busy||mode!=='groups'||!current||String(message.user_id)!==ownerId)return;
- if(!confirm('Delete this message from GroupMe? This cannot be undone.'))return;busy=true;const group=current.id;
+ if(!confirm('Delete this message from GroupMe? This cannot be undone.'))return;busy=true;updateComposer();const group=current.id;
  try{await api('delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group,message:String(message.id)})});deletedMessages.add(group+':'+message.id);if(replyTarget?.id===message.id){clearReply();saveDraft()}renderMessages();status('Message deleted from GroupMe.')}
- catch(e){status(e.message+' Nothing was removed from this view.')}finally{busy=false}
+ catch(e){status(e.message+' Nothing was removed from this view.')}finally{busy=false;updateComposer()}
 }
 
 loadTextSize();
@@ -232,15 +233,15 @@ function contactPhotoFor(message){
 }
 
 $('attach-photo').onclick=()=>$('photo-file').click();
-$('remove-photo').onclick=()=>{if(!busy){pendingAudio=null;pendingPhoto=null;$('attachment-status').textContent='';$('remove-photo').hidden=true}};
+$('remove-photo').onclick=()=>{if(!busy){pendingAudio=null;pendingPhoto=null;$('attachment-status').textContent='';$('remove-photo').hidden=true;saveDraft()}};
 $('photo-file').onchange=async()=>{
  const file=$('photo-file').files?.[0];$('photo-file').value='';if(!file||busy||mode!=='groups'||!current)return;
  if(!['image/jpeg','image/png','image/gif','image/webp'].includes(file.type)||file.size>8000000){$('attachment-status').textContent='Choose a JPG, PNG, GIF or WebP photo under 8 MB.';return}
  pendingAudio=null;pendingPhoto=null;$('remove-photo').hidden=true;busy=true;$('send').disabled=true;$('attach-photo').disabled=true;$('attachment-status').textContent='Uploading photo…';
  try{const data=await api('upload',{method:'POST',headers:{'Content-Type':file.type},body:file});pendingPhoto=data.url;source=crypto.randomUUID();$('attachment-status').textContent=file.name+' · Ready to send';$('remove-photo').hidden=false}
- catch(error){$('attachment-status').textContent=error.message}finally{busy=false;$('send').disabled=false;$('attach-photo').disabled=false}
+ catch(error){$('attachment-status').textContent=error.message}finally{busy=false;saveDraft();$('attach-photo').disabled=false}
 };
 
-window.DockGroupMeAudioTarget={current:()=>mode==='groups'?current?.id:null,attach:(group,url)=>{if(busy||mode!=='groups'||current?.id!==group)throw Error('Return to the original group before attaching.');pendingAudio=url;pendingPhoto=null;source=crypto.randomUUID();$('attachment-status').textContent='Voice clip · Ready to send';$('remove-photo').hidden=false}};
+window.DockGroupMeAudioTarget={current:()=>mode==='groups'?current?.id:null,attach:(group,url)=>{if(busy||mode!=='groups'||current?.id!==group)throw Error('Return to the original group before attaching.');pendingAudio=url;pendingPhoto=null;source=crypto.randomUUID();$('attachment-status').textContent='Voice clip · Ready to send';$('remove-photo').hidden=false;saveDraft()}};
 
 window.DockGroupMeMentionState={get:()=>({group:mode==='groups'?current?.id:null,entries:mentionEntries,members:groups.find(g=>g.id===current?.id)?.members||[]}),set:entries=>{mentionEntries=entries}};
