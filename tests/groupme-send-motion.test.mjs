@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {flightFrames,sendStyles} from '../projects/groupme-messages/send-motion.js';
+test('all five send styles travel from composer offset to the final bubble position',()=>{assert.equal(sendStyles.filter(x=>x!=='off').length,5);for(const style of sendStyles.filter(x=>x!=='off')){const frames=flightFrames(style,-40,300);assert.match(frames[0].transform,/translate\(-40px,300px\)/);assert.equal(frames.at(-1).transform,'translate(0,0) scale(1)');assert.equal(frames.at(-1).opacity,1)}});

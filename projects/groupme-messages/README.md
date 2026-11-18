@@ -70,3 +70,8 @@ Links opens a searchable, deduplicated list of URLs from loaded messages in the 
 Device notifications → Show chat names and message previews controls alerts on all devices. Turning it off redacts chat names, sender names, and text at the server when queued notifications are retrieved. Already delivered notifications are unchanged; original queued previews remain in private Cloudflare storage until acknowledgment or expiry.
 
 Typing dots and their connection/preview controls have been removed from the running app.
+
+## Sending and background delivery
+Settings → Send animation offers Glide, Arc, Spring, Flip, Comet, or Off. Confirmed sent messages fly from the composer to their actual bubble when the returned message is present in refreshed history. No flight is shown for failed sends, Quick mode, or reduced-motion devices. New incoming messages scroll the chat to the bottom automatically, except while filtering message search. Loading earlier history still preserves position.
+
+GroupMe chat watches and Tasks reminder schedules already run in Cloudflare Durable Object alarms without an open Dock page. Enable notifications separately for each device and enable Notify for desired GroupMe chats; Tasks reminders must finish syncing before closing Dock. Force-stopping Chrome, blocked notifications, battery restrictions, expired subscriptions, or no network can delay/prevent delivery. An expired Dock session can produce a generic GroupMe alert. Server restart tests verify both schedulers continue without client polling.
