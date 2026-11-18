@@ -69,7 +69,7 @@ $('text').onkeydown=event=>{
  if(event.key==='Escape'&&replyTarget){event.preventDefault();clearReply();saveDraft();return}
  if(event.key!=='Enter'||event.shiftKey||event.isComposing||event.keyCode===229)return;
  event.preventDefault();
- if(event.repeat||busy||!current||mode==='dms'||!$('text').value.trim())return;
+ if(event.repeat||busy||!current||mode==='dms'||(!$('text').value.trim()&&!pendingPhoto&&!pendingAudio))return;
  keyboardSend=true;try{$('compose').requestSubmit()}finally{keyboardSend=false}
 };
 $('compose').onsubmit=async event=>{
@@ -98,7 +98,7 @@ try{drafts=readObject(DRAFT_KEY,sessionStorage)}catch{}
 const messageTime=new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit'});
 function messageDay(seconds){const date=new Date(seconds*1000);if(Number.isNaN(date.valueOf()))return 'Unknown date';const now=new Date(),yesterday=new Date();yesterday.setDate(now.getDate()-1);return date.toDateString()===now.toDateString()?'Today':date.toDateString()===yesterday.toDateString()?'Yesterday':date.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',...(date.getFullYear()!==now.getFullYear()?{year:'numeric'}:{})})}
 function applyDisplay(){for(const key of ['density','layout','width']){$('chat-app').dataset[key]=displayPrefs[key];$('display-'+key).value=displayPrefs[key]}$('display-emoji').checked=displayPrefs.emoji;$('refresh-interval').value=String(displayPrefs.interval);$('live-status').textContent='Live · checks every '+displayPrefs.interval+' sec'}
-function saveDisplay(){try{localStorage.setItem(DISPLAY_KEY,JSON.stringify(displayPrefs))}catch{status('Settings applied for this session; browser storage is unavailable.')}applyDisplay();const top=$('messages').scrollTop;renderMessages();$('messages').scrollTop=top}
+function saveDisplay(){try{localStorage.setItem(DISPLAY_KEY,JSON.stringify(displayPrefs))}catch{status('Settings applied for this session; browser storage is unavailable.')}applyDisplay();const top=$('messages').scrollTop;renderMessages();$('messages').scrollTop=top;updateComposer()}
 function initDisplay(){applyDisplay();$('display-settings').onclick=()=>$('display-dialog').showModal();$('display-close').onclick=()=>$('display-dialog').close();for(const key of ['density','layout','width'])$('display-'+key).onchange=()=>{displayPrefs[key]=$('display-'+key).value;saveDisplay()};$('display-emoji').onchange=()=>{displayPrefs.emoji=$('display-emoji').checked;saveDisplay()};$('refresh-interval').onchange=()=>{const value=Number($('refresh-interval').value);if(!Number.isInteger(value)||value<1||value>300){$('interval-status').textContent='Choose a whole number from 1 to 300 seconds.';return}displayPrefs.interval=value;liveDelay=value*1000;saveDisplay();$('interval-status').textContent='Saved. Active chats and conversation badges check every '+value+' seconds while this page is visible.';scheduleLive(liveDelay)};$('display-reset').onclick=()=>{displayPrefs={...displayDefaults};applyTextSize(14);try{localStorage.setItem(TEXT_SIZE_KEY,'14')}catch{}saveDisplay();liveDelay=5000;scheduleLive()}}
 function updateComposer(){const input=$('text'),length=(input.value||'').length+replyPrefix().length;$('message-count').textContent=length+' / 1000';$('message-count').dataset.over=String(length>1000);$('compose').dataset.counter=length>=800?'visible':'quiet';input.setAttribute('aria-invalid',String(length>1000));$('send').disabled=busy||!current||mode!=='groups'||(!input.value.trim()&&!pendingPhoto&&!pendingAudio)||length>1000;const minimum=44;input.style.height='0px';input.style.height=Math.min(144,Math.max(minimum,input.scrollHeight||minimum))+'px'}
 function draftKey(){return mode+':'+current?.id}
@@ -171,7 +171,7 @@ window.addEventListener('online',()=>scheduleLive(0));window.addEventListener('p
 
 function replyPrefix(){return replyTarget?'> '+replyTarget.name.slice(0,60)+': '+replyTarget.text.slice(0,250).replace(/\n/g,'\n> ')+'\n\n':''}
 function clearReply(){replyTarget=null;$('reply-bar').hidden=true;$('text').maxLength=1000}
-$('cancel-reply').onclick=()=>{clearReply();saveDraft()};
+$('cancel-reply').onclick=()=>{clearReply();saveDraft();$('text').focus({preventScroll:true})};
 const REACTION_EMOJI=['❤️','👍','🤣','🎉','🔥','😮','👀','😭','🥺','🙏','💀','🫶','🤬','💅','🫠'];
 let reactionMessage=null;
 function openReactions(message){if(busy)return;reactionMessage=message;const root=$('reaction-options');root.replaceChildren();for(const emoji of REACTION_EMOJI){const button=document.createElement('button');button.type='button';button.textContent=emoji;const selected=message.dock_reaction||(Array.isArray(message.favorited_by)&&message.favorited_by.map(String).includes(ownerId)?'❤️':null);button.setAttribute('aria-label','React '+emoji);button.setAttribute('aria-pressed',String(selected===emoji));button.onclick=()=>{$('reaction-dialog').close();reactToMessage(reactionMessage,selected===emoji,emoji)};root.append(button)}$('reaction-dialog').showModal()}
@@ -195,10 +195,10 @@ async function deleteMessage(message){
 
 loadTextSize();
 $('text-size').oninput=()=>{const size=normalizedTextSize($('text-size').value);applyTextSize(size);updateComposer();try{localStorage.setItem(TEXT_SIZE_KEY,String(size))}catch{status('Text size changed for this session; browser storage is unavailable.')}};
-window.addEventListener('storage',event=>{if(event.key===TEXT_SIZE_KEY||event.key===null)loadTextSize()});
+window.addEventListener('storage',event=>{if(event.key===TEXT_SIZE_KEY||event.key===null){loadTextSize();updateComposer()}});
 
 $('conversation-back').onclick=()=>{saveDraft();$('chat-app').dataset.panel='list';window.DockGroupMeTyping?.chatChanged();$('list-title').focus({preventScroll:true})};
-function fitChatViewport(){if(!window.visualViewport)return;const follow=current&&nearLatest()&&document.activeElement===$('text');$('chat-app').style.setProperty('--chat-viewport-height',Math.round(window.visualViewport.height)+'px');if(follow){const scroll=()=>{$('messages').scrollTop=$('messages').scrollHeight};if(window.requestAnimationFrame)window.requestAnimationFrame(scroll);else scroll()}}
+function fitChatViewport(){updateComposer();if(!window.visualViewport)return;const follow=current&&nearLatest()&&document.activeElement===$('text');$('chat-app').style.setProperty('--chat-viewport-height',Math.round(window.visualViewport.height)+'px');if(follow){const scroll=()=>{$('messages').scrollTop=$('messages').scrollHeight};if(window.requestAnimationFrame)window.requestAnimationFrame(scroll);else scroll()}}
 window.visualViewport?.addEventListener('resize',fitChatViewport);window.addEventListener('resize',fitChatViewport);fitChatViewport();
 
 window.DockGroupMeChat={getCurrent:()=>current?{kind:mode,id:current.id,name:current.name}:null,getOwner:()=>ownerId,isVisible:conversationVisible,getMemberName:id=>groups.find(g=>g.id===current?.id)?.members?.find(m=>String(m.user_id)===String(id))?.nickname};
@@ -234,13 +234,13 @@ function contactPhotoFor(message){
 }
 
 $('attach-photo').onclick=()=>$('photo-file').click();
-$('remove-photo').onclick=()=>{if(!busy){pendingAudio=null;pendingPhoto=null;$('attachment-status').textContent='';$('remove-photo').hidden=true;saveDraft()}};
+$('remove-photo').onclick=()=>{if(!busy){pendingAudio=null;pendingPhoto=null;$('attachment-status').textContent='';$('remove-photo').hidden=true;saveDraft();$('attach-photo').focus({preventScroll:true})}};
 $('photo-file').onchange=async()=>{
  const file=$('photo-file').files?.[0];$('photo-file').value='';if(!file||busy||mode!=='groups'||!current)return;
- if(!['image/jpeg','image/png','image/gif','image/webp'].includes(file.type)||file.size>8000000){$('attachment-status').textContent='Choose a JPG, PNG, GIF or WebP photo under 8 MB.';return}
+ if(!['image/jpeg','image/png','image/gif','image/webp'].includes(file.type)||file.size>8000000){$('attachment-status').textContent='Choose a JPG, PNG, GIF or WebP photo under 8 MB.';$('remove-photo').hidden=false;return}
  pendingAudio=null;pendingPhoto=null;$('remove-photo').hidden=true;busy=true;$('send').disabled=true;$('attach-photo').disabled=true;$('attachment-status').textContent='Uploading photo…';
  try{const data=await api('upload',{method:'POST',headers:{'Content-Type':file.type},body:file});pendingPhoto=data.url;source=crypto.randomUUID();$('attachment-status').textContent=file.name+' · Ready to send';$('remove-photo').hidden=false}
- catch(error){$('attachment-status').textContent=error.message}finally{busy=false;saveDraft();$('attach-photo').disabled=false}
+ catch(error){$('attachment-status').textContent=error.message;$('remove-photo').hidden=false}finally{busy=false;saveDraft();$('attach-photo').disabled=false}
 };
 
 window.DockGroupMeAudioTarget={current:()=>mode==='groups'?current?.id:null,attach:(group,url)=>{if(busy||mode!=='groups'||current?.id!==group)throw Error('Return to the original group before attaching.');pendingAudio=url;pendingPhoto=null;source=crypto.randomUUID();$('attachment-status').textContent='Voice clip · Ready to send';$('remove-photo').hidden=false;saveDraft()}};
