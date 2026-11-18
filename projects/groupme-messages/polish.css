@@ -73,3 +73,7 @@ dialog{border-radius:18px!important;border-color:var(--line)!important;backgroun
 .search-match{color:var(--text);background:color-mix(in srgb,var(--accent) 18%,var(--bg));border-radius:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:0 1px}.message-search-bar input{min-width:0}#message-search-count{font-size:11px;line-height:1.5;color:var(--muted)}
 
 #compose[data-drop=true] .composer-shell{border-color:var(--accent);background:var(--chat-selected);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 12%,transparent)}
+
+#pin-chat{display:inline-flex;align-items:center;justify-content:center;gap:5px}#pin-chat svg{width:15px;height:15px}#pin-chat[aria-pressed=true]{color:var(--accent);background:var(--chat-selected)}.conversation-pin-mark{position:absolute;z-index:1;left:36px;top:41px;width:16px;height:16px;display:grid;place-items:center;border-radius:50%;background:var(--bg);color:var(--muted);box-shadow:0 0 0 2px var(--bg);pointer-events:none}.conversation-pin-mark svg{width:11px;height:11px}@media(max-width:650px){.chat-head #pin-chat{display:none}.chat-app[data-tools=open] .chat-head #pin-chat{display:flex;flex:1;min-height:44px}.conversation-pin-mark{left:38px;top:44px}}
+
+@media(max-width:650px){#pin-chat #pin-label{display:none}.chat-app[data-tools=open] .chat-head{gap:6px}.chat-app[data-tools=open] .chat-head #pin-chat{flex:0 0 44px;width:44px;padding:0}.chat-app[data-tools=open] .chat-head :is(#find-messages,#chat-notify,#refresh,#chat-settings){padding-left:8px;padding-right:8px}}
