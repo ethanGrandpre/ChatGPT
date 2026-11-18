@@ -54,11 +54,11 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
   const target=body?.group;
   if(!/^\d{1,30}$/.test(target||'')||typeof body.text!=='string'||(!body.text.trim()&&!body.attachments?.length)||body.text.length>1000||! /^[\w-]{8,80}$/.test(body.source||''))return failure('Choose a conversation and enter up to 1,000 characters.','INPUT',400);
   if(body.attachments!==undefined){
-   if(!Array.isArray(body.attachments)||body.attachments.length>2)return failure('Invalid attachments.','INPUT',400);
-   let media=0,mentions=0;
+   if(!Array.isArray(body.attachments)||body.attachments.length>3)return failure('Invalid attachments.','INPUT',400);
+   let media=0,mentions=0,replies=0;
    for(const attachment of body.attachments){
     if(!attachment||typeof attachment!=='object')return failure('Invalid attachment.','INPUT',400);
-    if(attachment.type==='mentions'){
+    if(attachment.type==='reply'){if(++replies>1||!/^\d{1,30}$/.test(String(attachment.reply_id||''))||!/^\d{1,30}$/.test(String(attachment.base_reply_id||'')))return failure('Invalid reply attachment.','INPUT',400)}else if(attachment.type==='mentions'){
      if(++mentions>1||!Array.isArray(attachment.user_ids)||!Array.isArray(attachment.loci)||!attachment.user_ids.length||attachment.user_ids.length>30||attachment.user_ids.length!==attachment.loci.length)return failure('Invalid mentions.','INPUT',400);
      for(let i=0;i<attachment.user_ids.length;i++){const locus=attachment.loci[i];if(!/^\d{1,30}$/.test(attachment.user_ids[i])||!Array.isArray(locus)||locus.length!==2||!locus.every(Number.isInteger)||locus[0]<0||locus[1]<1||locus[0]+locus[1]>body.text.trim().length||body.text.trim()[locus[0]]!=='@')return failure('Invalid mention range.','INPUT',400)}
     }else if(++media>1||!((attachment.type==='audio'&&audioURL(attachment.url))||(attachment.type==='image'&&typeof attachment.url==='string'&&/^https:\/\/i\.groupme\.com\/[^\s]+$/.test(attachment.url))))return failure('Invalid media attachment.','INPUT',400);
