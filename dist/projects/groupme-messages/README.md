@@ -63,3 +63,10 @@ Buttons, topic branches, dialogs, new message rows, and context panels have shor
 Topic rows and the current-topic selector show GroupMe topic photos, with a # fallback and a chat-bubble fallback for #main. Missing or failed images leave the fallback visible. Topic images use the same HTTPS photo loader and private upload-image retry as group photos.
 
 Settings → Animations chooses **Smooth** or **Quick (reduced)** and syncs with existing display preferences. Quick removes entrance animations and shortens transitions to 60 ms. Device reduced-motion preferences disable animation in either mode.
+
+## Shared links and notification privacy
+Links opens a searchable, deduplicated list of URLs from loaded messages in the current chat. On phones it is under conversation tools (•••). Earlier history must be loaded before its links appear. URLs open separately; no previews are fetched.
+
+Device notifications → Show chat names and message previews controls alerts on all devices. Turning it off redacts chat names, sender names, and text at the server when queued notifications are retrieved. Already delivered notifications are unchanged; original queued previews remain in private Cloudflare storage until acknowledgment or expiry.
+
+Typing dots and their connection/preview controls have been removed from the running app.

@@ -14,12 +14,13 @@ export class GroupMePush extends TaskPush{
  fetch(request){return this.run(async()=>{try{
   const url=new URL(request.url),deviceId=url.searchParams.get('deviceId');
   if(request.method==='GET'){
-   if(url.searchParams.get('events')==='1'){if(!validDevice(deviceId))return json({error:'Invalid device.'},400);return json({events:(this.devices[deviceId]?.pending||[]).filter(e=>e.at>Date.now()-86400000)})}
-   const keys=await this.ensureKeys();return json({publicKey:keys.publicKey,subscribed:!!this.devices[deviceId],chats:Object.keys(this.state.chats),lastError:this.state.lastError,lastChecked:this.state.lastChecked||null});
+   if(url.searchParams.get('events')==='1'){if(!validDevice(deviceId))return json({error:'Invalid device.'},400);return json({events:(this.devices[deviceId]?.pending||[]).filter(e=>e.at>Date.now()-86400000).map(e=>this.state.previews===false?{...e,name:'GroupMe',body:'New message',count:0}:e)})}
+   const keys=await this.ensureKeys();return json({previews:this.state.previews!==false,publicKey:keys.publicKey,subscribed:!!this.devices[deviceId],chats:Object.keys(this.state.chats),lastError:this.state.lastError,lastChecked:this.state.lastChecked||null});
   }
   if(request.method!=='POST')return json({error:'Method not allowed.'},405);
   const raw=await request.text();if(raw.length>20000)return json({error:'Request too large.'},413);const data=JSON.parse(raw);
   if(!validDevice(data.deviceId))return json({error:'Invalid device.'},400);const id=data.deviceId;
+  if(data.action==='privacy'){if(typeof data.previews!=='boolean')return json({error:'Invalid privacy preference.'},400);this.state.previews=data.previews;await this.persist();return json({previews:this.state.previews})}
   if(data.action==='subscribe'){
    const endpoint=pushEndpoint(data.subscription?.endpoint||'');if(!this.devices[id]&&Object.keys(this.devices).length>=12)return json({error:'Disable an unused device before adding another.'},400);
    this.devices[id]={...this.devices[id],endpoint,topic:'dock-groupme',pending:this.devices[id]?.pending||[],needsPush:false};await this.ensureKeys();await this.persist();return json({subscribed:true});
