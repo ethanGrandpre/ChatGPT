@@ -1,5 +1,5 @@
 /* GroupMe visual layer: quiet surfaces, clear hierarchy and roomy reading. */
-.chat-app{--chat-surface:color-mix(in srgb,var(--text) 3%,var(--bg));--chat-selected:color-mix(in srgb,var(--accent) 8%,var(--bg));max-width:1440px}
+:root{--chat-surface:color-mix(in srgb,var(--text) 3%,var(--bg));--chat-selected:color-mix(in srgb,var(--accent) 8%,var(--bg))}.chat-app{max-width:1440px}
 .chat-app>header{min-height:62px;border-color:var(--line)}.chat-app>header>a{font-size:14px;font-weight:600;letter-spacing:-.3px}
 .header-settings{gap:6px}.header-settings button{border:1px solid transparent!important;border-radius:10px!important;min-height:38px!important;background:transparent}.header-settings button:hover{background:var(--chat-surface)}
 .chat-layout{grid-template-columns:290px minmax(0,1fr)}.chat-layout>aside{padding:26px 18px 18px 0}.chat-layout>aside h1{font-size:23px;letter-spacing:-.8px;margin:0 0 16px;font-weight:600}
@@ -56,7 +56,7 @@ dialog{border-radius:18px!important;border-color:var(--line)!important;backgroun
 #compose .composer-shell button:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
 @media(max-width:650px){#compose #text{max-height:min(120px,26dvh)}#compose .composer-shell{border-radius:17px;gap:0}}
 @media(min-width:651px) and (max-width:960px){.chat-layout{grid-template-columns:220px minmax(0,1fr)}.chat-layout>main{padding-left:20px;padding-right:20px}.chat-head h2{font-size:18px}}
-.chat-app button:hover{opacity:1}.chat-app button:disabled{opacity:.4}.chat-app{--chat-danger:#b42318}:root.dark .chat-app{--chat-danger:#ff9b91}#message-count[data-over=true]{color:var(--chat-danger)}#status[data-error=true],#text[aria-invalid=true]{border-color:var(--chat-danger)}
+.chat-app button:hover{opacity:1}.chat-app button:disabled{opacity:.4}:root{--chat-danger:#b42318}:root.dark{--chat-danger:#ff9b91}#message-count[data-over=true]{color:var(--chat-danger)}#status[data-error=true],#text[aria-invalid=true]{border-color:var(--chat-danger)}
 #delete-dialog{width:min(420px,calc(100vw - 24px));padding:24px}#delete-dialog h2{font-size:20px;letter-spacing:-.5px;margin:0 0 12px}#delete-dialog p{font-size:12px;line-height:1.7;color:var(--muted)}#delete-preview{margin:18px 0;padding:12px 14px;border-left:2px solid var(--line);background:var(--hover);border-radius:0 10px 10px 0;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.dialog-actions button{min-height:44px;padding:10px 14px;border-radius:10px}.danger-confirm{background:var(--chat-danger);color:var(--bg)}
 /* Readable supporting text and comfortable targets on touchscreens. */
 .message header strong{font-size:12px}.message time{font-size:10px}.message-actions button{font-size:11px;min-height:36px}.conversation-tabs button{min-height:44px}.chat-head button:focus-visible,.header-settings button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

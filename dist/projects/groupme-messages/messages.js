@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id);let mode='groups',groups=[],page=1,curre
 let titlePhotoSignature='';
 let ownerId='',replyTarget=null,messageQuery='',newMessageCount=0,listSignature='',searchScrollTop=0,deferredRender=false;const deletedMessages=new Set();
 let initialChat;try{const value=new URL(location.href).searchParams.get('chat');if(/^(groups|dms):\d{1,30}$/.test(value||''))initialChat=value}catch{}
-let mentionEntries=[];let pendingAudio=null;let pendingPhoto=null;let sendNotice=0;let followingLatest=true;let keyboardSend=false;
+let mentionEntries=[];let pendingAudio=null;let pendingPhoto=null;let sendNotice=0;let followingLatest=true;let savedReadingPosition=null;let keyboardSend=false;
 let connected=false,reading=0,listing=0,retryAt=0,liveTimer,lastList=0,lastAttempt=0,liveDelay=5000,stopped=false;
 const status=text=>{$('status').textContent=text;$('list-status').textContent=text};
 async function api(action,options={}){
@@ -57,8 +57,8 @@ async function loadMessages(older=false,live=false,preserve=false){
   const known=new Map(messages.map(m=>[String(m.id),m]));const fresh=incoming.filter(m=>!known.has(String(m.id)));const next=(older||live||preserve)?[...new Map([...messages,...incoming.map(m=>({...known.get(String(m.id)),...m}))].map(m=>[String(m.id),m])).values()]:incoming;
   if(JSON.stringify(next)!==JSON.stringify(messages)||!root.children.length||(deferredRender&&!mediaBusy&&!interactionBusy)){const oldHeight=root.scrollHeight||0;messages=next;if(mediaBusy||interactionBusy){deferredRender=true;$('new-messages').hidden=false;$('new-messages').textContent='Updates waiting · Show latest'}else{renderMessages();if(older)restoreReadingPosition(position,top+Math.max(0,(root.scrollHeight||0)-oldHeight));else if((live||preserve)&&!nearBottom)restoreReadingPosition(position);else root.scrollTop=root.scrollHeight}}
   if(live&&(!nearBottom||mediaBusy||interactionBusy)&&fresh.length){newMessageCount+=fresh.length;$('new-messages').hidden=false;$('new-messages').textContent=newMessageCount+' new messages · Jump to latest'}else if(nearBottom&&!messageQuery&&!deferredRender)resetNewMessages();
-  followingLatest=nearLatest();
   if(!live){$('older').hidden=incoming.length<40;status('Updated '+new Date().toLocaleTimeString());if(!older&&!preserve)root.scrollTop=root.scrollHeight}
+  followingLatest=nearLatest();savedReadingPosition=followingLatest?null:captureReadingPosition();
   if(!older&&!deferredRender)markRead();
   if(live&&$('status').dataset.error==='true'){status('Reconnected · messages are updating automatically.');$('status').dataset.error='false'}
   return true;
@@ -210,7 +210,7 @@ $('message-search').oninput=()=>{messageQuery=$('message-search').value.trim().s
 $('close-message-search').onclick=()=>{clearMessageSearch();renderMessages();$('messages').scrollTop=searchScrollTop;$('find-messages').focus()};
 $('message-search').onkeydown=e=>{if(e.key==='Escape')$('close-message-search').onclick()};
 $('new-messages').onclick=()=>{if(messageQuery)clearMessageSearch();renderMessages();$('messages').scrollTop=$('messages').scrollHeight;followingLatest=true;resetNewMessages();markRead()};
-$('messages').onscroll=()=>{followingLatest=nearLatest();if(followingLatest&&!deferredRender){resetNewMessages();markRead()}else if(current&&messages.length&&!messageQuery&&!deferredRender){$('new-messages').hidden=false;$('new-messages').textContent=newMessageCount?newMessageCount+' new messages · Jump to latest':'Jump to latest'}};
+$('messages').onscroll=()=>{followingLatest=nearLatest();savedReadingPosition=followingLatest?null:captureReadingPosition();if(followingLatest&&!deferredRender){resetNewMessages();markRead()}else if(current&&messages.length&&!messageQuery&&!deferredRender){$('new-messages').hidden=false;$('new-messages').textContent=newMessageCount?newMessageCount+' new messages · Jump to latest':'Jump to latest'}};
 window.addEventListener('storage',event=>{if(event.key===DISPLAY_KEY||event.key===null){displayPrefs=normalizeDisplay(readObject(DISPLAY_KEY));applyDisplay();renderMessages();liveDelay=displayPrefs.interval*1000;scheduleLive()}if(event.key===READ_KEY||event.key===null){readState=readObject(READ_KEY);renderGroups()}});
 
 function collapseConversationTools(){$('chat-app').dataset.tools='closed';$('chat-tools').setAttribute('aria-expanded','false')}
@@ -254,7 +254,7 @@ window.DockGroupMeAudioTarget={current:()=>mode==='groups'?current?.id:null,atta
 
 window.DockGroupMeMentionState={get:()=>({group:mode==='groups'?current?.id:null,entries:mentionEntries,members:groups.find(g=>g.id===current?.id)?.members||[]}),set:entries=>{mentionEntries=entries}};
 
-function mediaReady(row,conversation){if(row.isConnected===false||current?.id!==conversation||!followingLatest||messageQuery)return;const follow=()=>{if(followingLatest&&!messageQuery&&current?.id===conversation){$('messages').scrollTop=$('messages').scrollHeight;resetNewMessages();markRead()}};if(window.requestAnimationFrame)window.requestAnimationFrame(follow);else follow()}
+function mediaReady(row,conversation){if(row.isConnected===false||current?.id!==conversation||messageQuery)return;if(!followingLatest){const position=savedReadingPosition;if(position?.chat===mode+':'+current?.id&&Math.abs(($('messages').scrollTop||0)-position.top)<2)restoreReadingPosition(position);return}const follow=()=>{if(row.isConnected===false||!followingLatest||messageQuery||current?.id!==conversation)return;$('messages').scrollTop=$('messages').scrollHeight;resetNewMessages();markRead()};if(window.requestAnimationFrame)window.requestAnimationFrame(follow);else follow()}
 
 let resolveDeletion=null;
 function confirmMessageDeletion(message){if(resolveDeletion)return Promise.resolve(false);$('delete-preview').textContent=(message.text||'[Attachment]').slice(0,280);return new Promise(resolve=>{resolveDeletion=resolve;$('delete-dialog').showModal();$('delete-cancel').focus()})}
@@ -266,7 +266,7 @@ function restoreDialogFocus(){const active=document.activeElement;if(active&&act
 for(const id of ['display-dialog','reaction-dialog','notifications-dialog','voice-dialog'])$(id).onclose=restoreDialogFocus;
 
 // Anchor the first visible message when content above it changes height.
-function captureReadingPosition(){const root=$('messages'),top=root.scrollTop||0;if(!root.getBoundingClientRect)return {top};const edge=root.getBoundingClientRect().top;const anchor=Array.from(root.querySelectorAll('.message')).find(row=>row.getBoundingClientRect().bottom>edge);return {top,id:anchor?.dataset.messageId,offset:anchor?anchor.getBoundingClientRect().top-edge:0}}
+function captureReadingPosition(){const root=$('messages'),top=root.scrollTop||0,chat=mode+':'+current?.id;if(!root.getBoundingClientRect)return {top,chat};const edge=root.getBoundingClientRect().top;const anchor=Array.from(root.querySelectorAll('.message')).find(row=>row.getBoundingClientRect().bottom>edge);return {top,chat,id:anchor?.dataset.messageId,offset:anchor?anchor.getBoundingClientRect().top-edge:0}}
 function restoreReadingPosition(position,fallback=position.top){const root=$('messages');const anchor=position.id&&Array.from(root.querySelectorAll?.('.message')||[]).find(row=>row.dataset.messageId===position.id);if(anchor?.getBoundingClientRect&&root.getBoundingClientRect)root.scrollTop=(root.scrollTop||0)+anchor.getBoundingClientRect().top-root.getBoundingClientRect().top-position.offset;else root.scrollTop=fallback}
 function readingInteractionActive(){if(document.querySelector?.('dialog[open]'))return true;const root=$('messages'),selection=window.getSelection?.();return !!(selection&&!selection.isCollapsed&&(root.contains?.(selection.anchorNode)||root.contains?.(selection.focusNode))||document.activeElement&&root.contains?.(document.activeElement)&&document.activeElement!==root)}
 
