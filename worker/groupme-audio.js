@@ -1,5 +1,18 @@
 const TYPES={'audio/x-m4a':'m4a','audio/aac':'aac','audio/x-wav':'wav','audio/webm':'webm','audio/mp4':'m4a','audio/mpeg':'mp3','audio/ogg':'ogg','audio/wav':'wav'};
-export function audioURL(value){try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&['m.groupme.com','v.groupme.com','a.groupme.com'].includes(u.hostname)?u.href:null}catch{return null}}
+const MEDIA_HOSTS=new Set(['m.groupme.com','v.groupme.com','a.groupme.com']);
+const DESTINATION_REASONS={SCHEME:'unsupported URL scheme',HOST:'unrecognized destination host',CREDENTIALS:'URL contains credentials',PORT:'unexpected network port',URL:'invalid or missing URL',SHAPE:'missing upload or playback URL'};
+class AudioDestinationError extends Error{constructor(kind,reason){super('Invalid audio destination');this.audioCode='GM_AUDIO_'+kind+'_'+reason;this.detail=DESTINATION_REASONS[reason]}}
+function destinationURL(value,kind){let url;try{if(typeof value!=='string'||!value.trim())throw Error();url=new URL(value.startsWith('//')?'https:'+value:value)}catch{throw new AudioDestinationError(kind,'URL')}
+ if(!['http:','https:'].includes(url.protocol))throw new AudioDestinationError(kind,'SCHEME');
+ if(url.username||url.password)throw new AudioDestinationError(kind,'CREDENTIALS');
+ if(url.port)throw new AudioDestinationError(kind,'PORT');
+ const trusted=kind==='RENDER'?MEDIA_HOSTS.has(url.hostname):url.hostname==='m.groupme.com'||/^[a-z0-9-]+\.blob\.core\.windows\.net$/.test(url.hostname);
+ if(!trusted)throw new AudioDestinationError(kind,'HOST');
+ // Legacy GroupMe links may advertise HTTP. Always contact the fixed trusted host over HTTPS.
+ url.protocol='https:';return url;
+}
+export function audioURL(value){try{return destinationURL(value,'RENDER').href}catch{return null}}
+function sessionURLs(data){const session=[data,data?.response,data?.payload].find(value=>value&&typeof value.uploadUrl==='string'&&typeof value.renderUrl==='string');if(!session)throw new AudioDestinationError('SESSION','SHAPE');return {upload:destinationURL(session.uploadUrl,'UPLOAD'),render:destinationURL(session.renderUrl,'RENDER').href}}
 export async function groupmeAudio(request,token,network){
  const reply=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'private, no-store'}}),url=new URL(request.url);
  let stage='validation';
@@ -15,14 +28,14 @@ export async function groupmeAudio(request,token,network){
  if(Number(request.headers.get('Content-Length'))>8000000)return reply({error:'Audio must be under 8 MB.'},413);const bytes=await request.arrayBuffer();if(!bytes.byteLength||bytes.byteLength>8000000)return reply({error:'Audio must be under 8 MB.'},413);
  const options={headers:{'X-Access-Token':token},redirect:'manual',signal:AbortSignal.timeout(25000)};
  stage='account check';const profile=await network(new Request('https://api.groupme.com/v3/users/me',options));if(!profile.ok)throw Error('HTTP '+profile.status);const user=String((await profile.json()).response?.id||'');if(!/^\d{1,30}$/.test(user))throw Error();
- stage='upload session';let session=await network(new Request('https://m.groupme.com/uploads',{...options,method:'POST',headers:{...options.headers,'Content-Type':'application/json'},body:JSON.stringify({fileSize:String(bytes.byteLength),senderId:user,extension,groupId:group})}));if(session.status===400)session=await network(new Request('https://m.groupme.com/uploads',{...options,method:'POST',headers:{...options.headers,'Content-Type':'application/json'},body:JSON.stringify({FileSize:bytes.byteLength,SenderId:user,Extension:extension,groupId:group})}));if(!session.ok)throw Error('HTTP '+session.status);const data=await session.json(),upload=new URL(data.uploadUrl),render=audioURL(data.renderUrl);
- stage='upload destination';if(!render||upload.protocol!=='https:'||upload.username||upload.password||upload.port||!(/^[a-z0-9-]+\.blob\.core\.windows\.net$/.test(upload.hostname)||upload.hostname==='m.groupme.com'))throw Error();
+ stage='upload session';let session=await network(new Request('https://m.groupme.com/uploads',{...options,method:'POST',headers:{...options.headers,'Content-Type':'application/json'},body:JSON.stringify({fileSize:String(bytes.byteLength),senderId:user,extension,groupId:group})}));if(session.status===400)session=await network(new Request('https://m.groupme.com/uploads',{...options,method:'POST',headers:{...options.headers,'Content-Type':'application/json'},body:JSON.stringify({FileSize:bytes.byteLength,SenderId:user,Extension:extension,groupId:group})}));if(!session.ok)throw Error('HTTP '+session.status);const data=await session.json();
+ stage='upload destination';const {upload,render}=sessionURLs(data);
  stage='audio transfer';let destination=upload,stored;
  for(let hop=0;hop<4;hop++){
-  if(destination.protocol!=='https:'||destination.username||destination.password||destination.port||!(/^[a-z0-9-]+\.blob\.core\.windows\.net$/.test(destination.hostname)||destination.hostname==='m.groupme.com'))throw Error();
+  destination=destinationURL(destination.href,'UPLOAD');
   stored=await network(new Request(destination.href,{method:'PUT',headers:{'Content-Type':type,'x-ms-blob-type':'BlockBlob'},body:bytes,redirect:'manual',signal:AbortSignal.timeout(25000)}));
-  if([307,308].includes(stored.status)){destination=new URL(stored.headers.get('Location'),destination);continue}break;
+  if([307,308].includes(stored.status)){const location=stored.headers.get('Location');if(!location)throw new AudioDestinationError('UPLOAD','URL');destination=destinationURL(new URL(location,destination).href,'UPLOAD');continue}break;
  }
  if(!stored?.ok)throw Error('HTTP '+stored?.status);return reply({response:{url:render},release:'groupme-notify-emoji-1'});
- }catch(error){const code=/^HTTP \d{3}$/.test(error.message)?' ('+error.message+')':'';return reply({error:'GroupMe '+stage+' failed'+code+'. Your clip can be retried; no message was sent.',release:'groupme-notify-emoji-1'},502)}
+ }catch(error){const diagnostic=error instanceof AudioDestinationError?' ('+error.detail+') ['+error.audioCode+']':'';const code=/^HTTP \d{3}$/.test(error.message)?' ('+error.message+')':'';return reply({error:'GroupMe '+stage+' failed'+code+diagnostic+'. Your clip can be retried; no message was sent.',release:'groupme-notify-emoji-1',...(error instanceof AudioDestinationError?{code:error.audioCode}:{})},502)}
 }
