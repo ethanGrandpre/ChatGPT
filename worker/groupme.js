@@ -1,3 +1,4 @@
+import {groupmeAudio,audioURL} from './groupme-audio.js';
 import {groupmeLive} from './groupme-live.js';
 // All calls reach this module only after Dock owner authentication.
 export const GROUPME_RELEASE='groupme-notify-emoji-1';
@@ -13,6 +14,7 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
  const token=typeof env.GROUPME_ACCESS_TOKEN==='string'?env.GROUPME_ACCESS_TOKEN.trim():'';
  if(!token)return failure('Add GROUPME_ACCESS_TOKEN as a Secret on the chatgpt Worker, then save and deploy.','SETUP',503);
  if(/[^\x21-\x7e]/.test(token))return failure('The saved token contains invalid characters. Copy only Your Access Token from GroupMe’s application page.','TOKEN_FORMAT',503);
+ if(action==='audio')return groupmeAudio(request,token,networkFetch);
  if(action==='upload'&&request.method==='POST'){
   if(request.headers.get('Origin')!==url.origin)return failure('Invalid origin.','ORIGIN',403);
   const type=request.headers.get('Content-Type');if(!['image/jpeg','image/png','image/gif','image/webp'].includes(type))return failure('Choose a JPG, PNG, GIF or WebP photo.','FILE_TYPE',400);
@@ -47,7 +49,17 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
   try{const raw=await request.text();if(raw.length>16000)return failure('Message is too large.','INPUT',413);body=JSON.parse(raw)}catch{return failure('Invalid message.','INPUT',400)}
   const target=body?.group;
   if(!/^\d{1,30}$/.test(target||'')||typeof body.text!=='string'||(!body.text.trim()&&!body.attachments?.length)||body.text.length>1000||! /^[\w-]{8,80}$/.test(body.source||''))return failure('Choose a conversation and enter up to 1,000 characters.','INPUT',400);
-  if(body.attachments!==undefined&&(!Array.isArray(body.attachments)||body.attachments.length>1||body.attachments.some(a=>a.type!=='image'||typeof a.url!=='string'||!/^https:\/\/i\.groupme\.com\/[^\s]+$/.test(a.url))))return failure('Invalid photo attachment.','INPUT',400);
+  if(body.attachments!==undefined){
+   if(!Array.isArray(body.attachments)||body.attachments.length>2)return failure('Invalid attachments.','INPUT',400);
+   let media=0,mentions=0;
+   for(const attachment of body.attachments){
+    if(!attachment||typeof attachment!=='object')return failure('Invalid attachment.','INPUT',400);
+    if(attachment.type==='mentions'){
+     if(++mentions>1||!Array.isArray(attachment.user_ids)||!Array.isArray(attachment.loci)||!attachment.user_ids.length||attachment.user_ids.length>30||attachment.user_ids.length!==attachment.loci.length)return failure('Invalid mentions.','INPUT',400);
+     for(let i=0;i<attachment.user_ids.length;i++){const locus=attachment.loci[i];if(!/^\d{1,30}$/.test(attachment.user_ids[i])||!Array.isArray(locus)||locus.length!==2||!locus.every(Number.isInteger)||locus[0]<0||locus[1]<1||locus[0]+locus[1]>body.text.trim().length||body.text.trim()[locus[0]]!=='@')return failure('Invalid mention range.','INPUT',400)}
+    }else if(++media>1||!((attachment.type==='audio'&&audioURL(attachment.url))||(attachment.type==='image'&&typeof attachment.url==='string'&&/^https:\/\/i\.groupme\.com\/[^\s]+$/.test(attachment.url))))return failure('Invalid media attachment.','INPUT',400);
+   }
+  }
   path='/v3/groups/'+target+'/messages';body={message:{source_guid:body.source,text:body.text.trim(),...(body.attachments?.length?{attachments:body.attachments}:{})}};
  }else return failure('Unknown GroupMe action.','ROUTE',404);
  try{
