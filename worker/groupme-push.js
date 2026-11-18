@@ -11,12 +11,12 @@ export class GroupMePush extends TaskPush{
 
  async read(action){const response=await groupme(new Request('https://internal/api/groupme/'+action),this.env,this.networkFetch);const data=await response.json();if(!response.ok)throw Error(data.error||'GroupMe is unavailable.');return data.response}
  async history(chat){const data=await this.read((chat.kind==='groups'?'messages?group=':'direct-messages?user=')+chat.id);return (chat.kind==='groups'?data.messages:data.direct_messages)||[]}
- async push(device){let code;try{code=await this.deliver(device)}catch{code=0}if(code===404||code===410)return'expired';if(code>=200&&code<300){device.needsPush=false;device.attempts=0;device.lastAccepted=Date.now();return'accepted'}device.attempts=(device.attempts||0)+1;if(device.attempts>=3){device.needsPush=false;device.attempts=0}return'failed'}
+ async push(device){let code;try{code=await this.deliver(device)}catch{code=0}if(code===404||code===410)return'expired';device.lastPushCode=code;device.lastError=code>=200&&code<300?null:'Push service returned '+code+'. Reconnect this device and retry.';if(code>=200&&code<300){device.needsPush=false;device.attempts=0;device.lastAccepted=Date.now();return'accepted'}device.attempts=(device.attempts||0)+1;if(device.attempts>=3){device.needsPush=false;device.attempts=0}return'failed'}
  fetch(request){return this.run(async()=>{try{
   const url=new URL(request.url),deviceId=url.searchParams.get('deviceId');
   if(request.method==='GET'){
    if(url.searchParams.get('events')==='1'){if(!validDevice(deviceId))return json({error:'Invalid device.'},400);return json({quiet:Object.values(this.devices[deviceId]?.active||{}).some(value=>value.until>Date.now()),events:(this.devices[deviceId]?.pending||[]).filter(e=>e.at>Date.now()-86400000).map(e=>this.state.previews===false?{...e,name:'GroupMe',body:'New message',count:0}:e)})}
-   const keys=await this.ensureKeys();return json({previews:this.state.previews!==false,publicKey:keys.publicKey,subscribed:!!this.devices[deviceId],chats:Object.keys(this.state.chats),lastError:this.state.lastError,lastChecked:this.state.lastChecked||null});
+   const keys=await this.ensureKeys();return json({previews:this.state.previews!==false,publicKey:keys.publicKey,subscribed:!!this.devices[deviceId],chats:Object.keys(this.state.chats),lastError:this.state.lastError,lastChecked:this.state.lastChecked||null,lastAccepted:this.devices[deviceId]?.lastAccepted||null,lastReceived:this.devices[deviceId]?.lastReceived||null,lastTestShown:this.devices[deviceId]?.lastTestShown||null,testAt:this.devices[deviceId]?.testAt||null,deviceError:this.devices[deviceId]?.lastError||null,chatChecks:Object.entries(this.state.chats).map(([key,chat])=>({key,name:chat.name,lastChecked:chat.lastChecked||null,error:chat.lastError||null,newCount:chat.newCount||0,status:(this.devices[deviceId]?.pending||[]).some(e=>e.chat===key)?'Queued':Object.values(this.devices[deviceId]?.active||{}).some(value=>value.until>Date.now()&&value.chat===key)?'Muted while focused':'Watching'}))});
   }
   if(request.method!=='POST')return json({error:'Method not allowed.'},405);
   const raw=await request.text();if(raw.length>20000)return json({error:'Request too large.'},413);const data=JSON.parse(raw);
@@ -24,7 +24,7 @@ export class GroupMePush extends TaskPush{
   if(data.action==='privacy'){if(typeof data.previews!=='boolean')return json({error:'Invalid privacy preference.'},400);this.state.previews=data.previews;await this.persist();return json({previews:this.state.previews})}
   if(data.action==='subscribe'){
    const endpoint=pushEndpoint(data.subscription?.endpoint||'');if(!this.devices[id]&&Object.keys(this.devices).length>=12)return json({error:'Disable an unused device before adding another.'},400);
-   this.devices[id]={...this.devices[id],endpoint,topic:'dock-groupme',pending:this.devices[id]?.pending||[],needsPush:false};await this.ensureKeys();await this.persist();return json({subscribed:true});
+   this.devices[id]={...this.devices[id],endpoint,topic:'dock-groupme',pending:this.devices[id]?.pending||[],needsPush:this.devices[id]?.needsPush||false};await this.ensureKeys();await this.persist();return json({subscribed:true});
   }
   if(data.action==='disable'){delete this.devices[id];await this.persist();return json({subscribed:false})}
   const device=this.devices[id];if(!device&&!(data.action==='watch'&&data.enabled===false))return json({error:'Enable notifications on this device first.',code:'subscription_missing'},409);
@@ -44,7 +44,7 @@ export class GroupMePush extends TaskPush{
    this.state.nextPoll=Math.min(this.state.nextPoll||Infinity,Date.now()+INTERVAL);await this.persist();return json({enabled:data.enabled,chats:Object.keys(this.state.chats)});
   }
   if(data.action==='ack'){
-   const ids=new Set(Array.isArray(data.ids)?data.ids.filter(x=>typeof x==='string').slice(0,50):[]);device.pending=device.pending.filter(e=>!ids.has(e.id));await this.persist();return json({ok:true});
+   const ids=new Set(Array.isArray(data.ids)?data.ids.filter(x=>typeof x==='string').slice(0,50):[]);const shown=new Set(Array.isArray(data.shown)?data.shown.filter(id=>typeof id==='string').slice(0,50):[]);if(device.pending.some(e=>shown.has(e.id))){device.lastReceived=Date.now();if(device.pending.some(e=>e.chat==='test'&&shown.has(e.id)))device.lastTestShown=Date.now()}device.pending=device.pending.filter(e=>!ids.has(e.id));await this.persist();return json({ok:true});
   }
   if(data.action==='test'){
    if(Date.now()-(device.lastTest||0)<30000)return json({error:'Wait 30 seconds between test notifications.'},429);
@@ -57,16 +57,18 @@ export class GroupMePush extends TaskPush{
   const now=Date.now();if(!Object.keys(this.devices).length){await this.persist();return}let failed=false;const tested=new Set();for(const [id,device] of Object.entries(this.devices))if(device.testAt&&device.testAt<=now){delete device.testAt;device.pending.push({id:crypto.randomUUID(),chat:'test',name:'GroupMe delayed test',body:'Your closed-tab test arrived.',at:now});device.pending=device.pending.slice(-30);device.needsPush=true;device.attempts=0;tested.add(id);const result=await this.push(device);if(result==='expired')delete this.devices[id];else if(result==='failed')failed=true}
 
   // Concurrent, bounded by the ten-chat limit. Each gateway call has a timeout.
-  const results=await Promise.all(Object.entries(this.state.chats).map(async([key,chat])=>{try{return{key,chat,messages:await this.history(chat)}}catch{return{key,chat,error:true}}}));
+  const results=await Promise.all(Object.entries(this.state.chats).map(async([key,chat])=>{try{return{key,chat,messages:await this.history(chat)}}catch(error){return{key,chat,error:true,errorText:String(error.message||'Chat check failed').slice(0,180)}}}));
   for(const result of results){
-   if(result.error){failed=true;continue}const{key,chat,messages}=result;
-   const seen=new Set(chat.seen),fresh=messages.filter(m=>!seen.has(String(m.id))&&Number(m.created_at)*1000>=chat.since-1000&&String(m.user_id||m.sender_id)!==this.state.accountId);
+   result.chat.lastChecked=now;if(result.error){result.chat.lastError=result.errorText;failed=true;continue}const{key,chat,messages}=result;chat.lastError=null;
+   const seen=new Set(chat.seen),cursor=numericCursor([...(chat.seen||[]),chat.cursor].filter(Boolean)),fresh=messages.filter(m=>m.id&&!seen.has(String(m.id))&&(!cursor||!/^\d+$/.test(String(m.id))||BigInt(m.id)>BigInt(cursor))&&String(m.user_id||m.sender_id)!==this.state.accountId);chat.cursor=numericCursor([cursor,...messages.map(m=>String(m.id))].filter(Boolean));chat.newCount=fresh.length;
    chat.seen=[...new Set([...messages.map(m=>String(m.id)),...chat.seen])].slice(0,200);
    if(!fresh.length)continue;fresh.sort((a,b)=>a.created_at-b.created_at);const latest=fresh.at(-1);
    const event={id:crypto.randomUUID(),chat:key,name:chat.name,body:(latest.name?latest.name+': ':'')+(latest.text||'New attachment'),count:fresh.length,at:now};event.body=event.body.slice(0,180);
    for(const device of Object.values(this.devices)){if(Object.values(device.active||{}).some(value=>value.until>now&&value.chat===key))continue;device.pending=device.pending.filter(e=>e.at>now-86400000&&e.chat!==key);device.pending.push(event);device.pending=device.pending.slice(-30);device.needsPush=true;device.attempts=0}
   }
   for(const[id,device]of Object.entries(this.devices))if(device.needsPush&&!tested.has(id)){const result=await this.push(device);if(result==='expired')delete this.devices[id];else if(result==='failed')failed=true}
-  this.state.failures=failed?(this.state.failures||0)+1:0;this.state.lastError=failed?'Some chat checks or push requests failed. They will retry automatically.':null;this.state.lastChecked=now;this.state.nextPoll=now+Math.min(300000,INTERVAL*2**Math.min(this.state.failures,4));await this.persist();
+  this.state.failures=failed?(this.state.failures||0)+1:0;this.state.lastError=failed?'Some chat checks or push requests failed. They will retry automatically.':null;this.state.lastChecked=now;this.state.nextPoll=now+(results.some(result=>!result.error)?INTERVAL:Math.min(300000,INTERVAL*2**Math.min(this.state.failures,4)));await this.persist();
  })}
 }
+
+function numericCursor(ids){let max=null;for(const id of ids)if(/^\d{1,30}$/.test(String(id))&&(!max||BigInt(id)>BigInt(max)))max=String(id);return max}

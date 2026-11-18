@@ -11,5 +11,6 @@ self.addEventListener('push',event=>event.waitUntil((async()=>{
  else if(reminders.length>1){title=`${reminders.length} task reminders`;body=reminders.slice(0,3).map(r=>r.title+(dueLabel(r.due)?' — '+dueLabel(r.due):'')).join('\n');if(reminders.length>3)body+=`\n+${reminders.length-3} more. Open Tasks to review.`}
  await self.registration.showNotification(title,{body,tag:'dock-tasks-reminder',renotify:true,icon:'icon-192.png',badge:'icon-192.png',data:{url:new URL('run.html?from=notification',self.registration.scope).href}});
  try{await DockTaskReminders.markShown(reminders)}catch{}
+ try{const deviceId=new URL(self.location.href).searchParams.get('device');if(deviceId)await fetch('/api/tasks-push',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'received',deviceId})})}catch{}
 })()));
 self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil((async()=>{const target=new URL('run.html?from=notification',self.registration.scope).href;const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});for(const client of windows)if(client.url.startsWith(self.registration.scope)){await client.navigate(target);return client.focus()}return self.clients.openWindow(target)})())});

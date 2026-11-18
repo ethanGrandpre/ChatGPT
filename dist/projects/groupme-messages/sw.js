@@ -5,9 +5,9 @@ self.addEventListener('push',event=>event.waitUntil((async()=>{
  let events=[],quiet=false;try{const response=await fetch('/api/groupme-push?events=1&deviceId='+encodeURIComponent(deviceId),{credentials:'include',cache:'no-store'});if(response.ok){const data=await response.json();events=data.events||[];quiet=data.quiet===true}}catch{}
  if(!events.length&&quiet)return;
  if(!events.length){await self.registration.showNotification('New GroupMe activity',{body:'Open Dock to sign in and view your messages.',tag:'dock-groupme',data:{url:new URL('run.html',self.registration.scope).href}});return}
- let active;try{active=await focusedChats()}catch{active=new Set()}
- for(const item of events.slice(-5)){if(active.has(item.chat))continue;const url=new URL('run.html',self.registration.scope);if(/^(groups|dms):\d{1,30}$/.test(item.chat))url.searchParams.set('chat',item.chat);await self.registration.showNotification(item.name||'GroupMe',{body:(item.count>1?item.count+' new messages · ':'')+(item.body||'New message'),tag:'dock-groupme-'+item.chat,data:{url:url.href}})}
- try{await fetch('/api/groupme-push',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'ack',deviceId,ids:events.map(e=>e.id)})})}catch{}
+ const shown=[];let active;try{active=await focusedChats()}catch{active=new Set()}
+ for(const item of events.slice(-5)){if(active.has(item.chat))continue;const url=new URL('run.html',self.registration.scope);if(/^(groups|dms):\d{1,30}$/.test(item.chat))url.searchParams.set('chat',item.chat);await self.registration.showNotification(item.name||'GroupMe',{body:(item.count>1?item.count+' new messages · ':'')+(item.body||'New message'),tag:'dock-groupme-'+item.chat,data:{url:url.href}});shown.push(item.id)}
+ try{await fetch('/api/groupme-push',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'ack',deviceId,ids:events.map(e=>e.id),shown})})}catch{}
 })()));
 self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil((async()=>{const target=new URL(event.notification.data?.url||'run.html',self.registration.scope);if(target.origin!==self.location.origin||!target.href.startsWith(self.registration.scope))return;for(const client of await self.clients.matchAll({type:'window',includeUncontrolled:true}))if(client.url.startsWith(self.registration.scope)){await client.navigate(target.href);return client.focus()}return self.clients.openWindow(target.href)})())});
 

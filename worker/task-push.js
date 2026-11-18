@@ -53,21 +53,22 @@ export class TaskPush {
    return json({entries,revision});
   }
   const id=url.searchParams.get('deviceId');
-  if(request.method==='GET'){const keys=await this.ensureKeys(),device=this.devices[id];return json({configured:true,publicKey:keys.publicKey,subscribed:!!device,scheduled:device?.reminders.length||0,lastAccepted:device?.lastAccepted||null,lastError:device?.lastError||null});}
+  if(request.method==='GET'){const keys=await this.ensureKeys(),device=this.devices[id];return json({configured:true,publicKey:keys.publicKey,subscribed:!!device,scheduled:device?.reminders.length||0,lastAccepted:device?.lastAccepted||null,lastReceived:device?.lastReceived||null,testAt:device?.testAt||null,lastError:device?.lastError||null});}
   if(request.method!=='POST')return json({error:'Method not allowed'},405);
   const data=await body(request);if(!data||typeof data.deviceId!=='string'||! /^[a-f0-9-]{36}$/i.test(data.deviceId))throw Error('Invalid device identifier.');
   const deviceId=data.deviceId;let device=this.devices[deviceId];
   if(data.action==='subscribe'){
    const endpoint=pushEndpoint(data.subscription?.endpoint||'');
    if(!device&&Object.keys(this.devices).length>=12)throw Error('Device limit reached. Disable notifications on an unused device first.');
-   device={endpoint,reminders:device?.reminders||[],sent:device?.sent||{},lastTest:device?.lastTest||0,lastError:null};this.devices[deviceId]=device;await this.ensureKeys();await this.persist();return json({subscribed:true});
+   device={...device,endpoint,reminders:device?.reminders||[],sent:device?.sent||{},lastTest:device?.lastTest||0,lastError:null};this.devices[deviceId]=device;await this.ensureKeys();await this.persist();return json({subscribed:true});
   }
   if(data.action==='disable'){delete this.devices[deviceId];await this.persist();return json({subscribed:false})}
   if(!device)return json({error:'Device subscription is missing. Enable notifications again.',code:'subscription_missing'},409);
+  if(data.action==='received'){device.lastReceived=Date.now();await this.persist();return json({ok:true})}
   if(data.action==='schedule'){
    const now=Date.now(),reminders=validateReminders(data.reminders,now),previous=new Map(device.reminders.map(r=>[r.id,r]));device.reminders=reminders.flatMap(r=>{if(!r.repeat)return device.sent[r.id]===r.at?[]:[r];const old=previous.get(r.id),same=old&&old.at===r.at&&old.repeat===r.repeat&&old.timeZone===r.timeZone;return[{...r,nextAt:same?occurrence(old):recurrence.next(r.at,r.repeat,r.timeZone,Math.max(now-1,device.sent[r.id]||0))}]});const retain=new Set(reminders.map(r=>r.id));device.sent=Object.fromEntries(Object.entries(device.sent).filter(([id])=>retain.has(id)));device.retryAt=0;device.attempts=0;await this.persist();return json({scheduled:device.reminders.length});
   }
-  if(data.action==='test-delayed'){if(Date.now()-(device.lastTest||0)<30000)return json({error:'Wait 30 seconds between tests.'},429);device.lastTest=Date.now();device.testAt=Date.now()+10000;await this.persist();return json({scheduled:true,at:device.testAt})}
+  if(data.action==='test-delayed'){if(Date.now()-(device.lastTest||0)<30000)return json({error:'Wait 30 seconds between tests.'},429);device.lastTest=Date.now();device.testAt=Date.now()+10000;device.retryAt=0;device.attempts=0;await this.persist();return json({scheduled:true,at:device.testAt})}
   if(data.action==='test'){
    if(Date.now()-(device.lastTest||0)<30000)return json({error:'Wait 30 seconds between test notifications.'},429);
    device.lastTest=Date.now();await this.persist();let code;try{code=await this.deliver(device)}catch(error){device.lastError=error.message;await this.persist();return json({error:device.lastError,code:error.code||'push_send_failed'},502)}
