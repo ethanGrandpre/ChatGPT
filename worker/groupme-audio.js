@@ -1,12 +1,13 @@
 const TYPES={'audio/x-m4a':'m4a','audio/aac':'aac','audio/x-wav':'wav','audio/webm':'webm','audio/mp4':'m4a','audio/mpeg':'mp3','audio/ogg':'ogg','audio/wav':'wav'};
 const MEDIA_HOSTS=new Set(['m.groupme.com','v.groupme.com','a.groupme.com']);
+const UPLOAD_HOSTS=new Set(['m.groupme.com','cdn2.groupme.com']);
 const DESTINATION_REASONS={SCHEME:'unsupported URL scheme',HOST:'unrecognized destination host',CREDENTIALS:'URL contains credentials',PORT:'unexpected network port',URL:'invalid or missing URL',SHAPE:'missing upload or playback URL'};
 class AudioDestinationError extends Error{constructor(kind,reason){super('Invalid audio destination');this.audioCode='GM_AUDIO_'+kind+'_'+reason;this.detail=DESTINATION_REASONS[reason]}}
 function destinationURL(value,kind){let url;try{if(typeof value!=='string'||!value.trim())throw Error();url=new URL(value.startsWith('//')?'https:'+value:value)}catch{throw new AudioDestinationError(kind,'URL')}
  if(!['http:','https:'].includes(url.protocol))throw new AudioDestinationError(kind,'SCHEME');
  if(url.username||url.password)throw new AudioDestinationError(kind,'CREDENTIALS');
  if(url.port)throw new AudioDestinationError(kind,'PORT');
- const trusted=kind==='RENDER'?MEDIA_HOSTS.has(url.hostname):url.hostname==='m.groupme.com'||/^[a-z0-9-]+\.blob\.core\.windows\.net$/.test(url.hostname);
+ const trusted=kind==='RENDER'?MEDIA_HOSTS.has(url.hostname):UPLOAD_HOSTS.has(url.hostname)||/^[a-z0-9-]+\.blob\.core\.windows\.net$/.test(url.hostname);
  if(!trusted){const error=new AudioDestinationError(kind,'HOST');if(kind==='UPLOAD')error.destinationHost=url.hostname;throw error}
  // Legacy GroupMe links may advertise HTTP. Always contact the fixed trusted host over HTTPS.
  url.protocol='https:';return url;
