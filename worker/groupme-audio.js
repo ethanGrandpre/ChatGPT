@@ -7,7 +7,7 @@ function destinationURL(value,kind){let url;try{if(typeof value!=='string'||!val
  if(!['http:','https:'].includes(url.protocol))throw new AudioDestinationError(kind,'SCHEME');
  if(url.username||url.password)throw new AudioDestinationError(kind,'CREDENTIALS');
  if(url.port)throw new AudioDestinationError(kind,'PORT');
- const trusted=kind==='RENDER'?MEDIA_HOSTS.has(url.hostname):UPLOAD_HOSTS.has(url.hostname)||/^[a-z0-9-]+\.blob\.core\.windows\.net$/.test(url.hostname);
+ const trusted=kind==='RENDER'?MEDIA_HOSTS.has(url.hostname):(kind==='DOWNLOAD'&&MEDIA_HOSTS.has(url.hostname))||UPLOAD_HOSTS.has(url.hostname)||/^[a-z0-9-]+\.blob\.core\.windows\.net$/.test(url.hostname);
  if(!trusted){const error=new AudioDestinationError(kind,'HOST');if(kind==='UPLOAD')error.destinationHost=url.hostname;throw error}
  // Legacy GroupMe links may advertise HTTP. Always contact the fixed trusted host over HTTPS.
  url.protocol='https:';return url;
@@ -19,9 +19,15 @@ export async function groupmeAudio(request,token,network){
  let stage='validation';
  try{
  if(request.method==='GET'){
-  const target=audioURL(url.searchParams.get('url'));if(!target)return reply({error:'Invalid audio URL.'},400);
-  const response=await network(new Request(target,{headers:{Cookie:'token='+token,...(request.headers.get('Range')?{Range:request.headers.get('Range')}:{})},redirect:'manual',signal:AbortSignal.timeout(25000)}));if(!response.ok)return reply({error:'GroupMe could not load the audio.'},502);
-  const headers=new Headers({'Content-Type':Object.keys(TYPES).includes(response.headers.get('Content-Type')?.split(';')[0])?response.headers.get('Content-Type'):'audio/mp4','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});for(const name of ['Content-Length','Content-Range','Accept-Ranges'])if(response.headers.has(name))headers.set(name,response.headers.get(name));return new Response(response.body,{status:response.status,headers});
+  const initial=audioURL(url.searchParams.get('url'));if(!initial)return reply({error:'Invalid audio URL.'},400);let target=new URL(initial);stage='audio playback';
+  for(let hop=0;hop<4;hop++){
+   const headers=new Headers(request.headers.get('Range')?{Range:request.headers.get('Range')}:{});if(MEDIA_HOSTS.has(target.hostname))headers.set('Cookie','token='+token);
+   const response=await network(new Request(target.href,{headers,redirect:'manual',signal:AbortSignal.timeout(25000)}));
+   if([301,302,303,307,308].includes(response.status)){const location=response.headers.get('Location');if(!location)throw new AudioDestinationError('DOWNLOAD','URL');target=destinationURL(new URL(location,target).href,'DOWNLOAD');continue}
+   if(!response.ok)return reply({error:'GroupMe could not load the audio.'},502);
+   const rawType=response.headers.get('Content-Type'),type=rawType?.split(';')[0].trim().toLowerCase();if(type&&!Object.keys(TYPES).includes(type)&&!['video/mp4','video/webm','application/octet-stream'].includes(type))return reply({error:'GroupMe returned a page instead of an audio clip. Reconnect or open the clip in GroupMe.',code:'GM_AUDIO_PLAYBACK_TYPE'},502);
+   const resultHeaders=new Headers({'Content-Type':type&&type!=='application/octet-stream'?rawType:'audio/mp4','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});for(const name of ['Content-Length','Content-Range','Accept-Ranges'])if(response.headers.has(name))resultHeaders.set(name,response.headers.get(name));return new Response(response.body,{status:response.status,headers:resultHeaders});
+  }return reply({error:'GroupMe audio redirected too many times. Retry the clip later.',code:'GM_AUDIO_PLAYBACK_REDIRECT_LIMIT'},502);
  }
  if(request.method!=='POST')return reply({error:'Method not allowed.'},405);
  if(request.headers.get('Origin')!==url.origin)return reply({error:'Invalid origin.'},403);
