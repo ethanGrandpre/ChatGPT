@@ -7,7 +7,7 @@ function destinationURL(value,kind){let url;try{if(typeof value!=='string'||!val
  if(url.username||url.password)throw new AudioDestinationError(kind,'CREDENTIALS');
  if(url.port)throw new AudioDestinationError(kind,'PORT');
  const trusted=kind==='RENDER'?MEDIA_HOSTS.has(url.hostname):url.hostname==='m.groupme.com'||/^[a-z0-9-]+\.blob\.core\.windows\.net$/.test(url.hostname);
- if(!trusted)throw new AudioDestinationError(kind,'HOST');
+ if(!trusted){const error=new AudioDestinationError(kind,'HOST');if(kind==='UPLOAD')error.destinationHost=url.hostname;throw error}
  // Legacy GroupMe links may advertise HTTP. Always contact the fixed trusted host over HTTPS.
  url.protocol='https:';return url;
 }
@@ -37,5 +37,5 @@ export async function groupmeAudio(request,token,network){
   if([307,308].includes(stored.status)){const location=stored.headers.get('Location');if(!location)throw new AudioDestinationError('UPLOAD','URL');destination=destinationURL(new URL(location,destination).href,'UPLOAD');continue}break;
  }
  if(!stored?.ok)throw Error('HTTP '+stored?.status);return reply({response:{url:render},release:'groupme-notify-emoji-1'});
- }catch(error){const diagnostic=error instanceof AudioDestinationError?' ('+error.detail+') ['+error.audioCode+']':'';const code=/^HTTP \d{3}$/.test(error.message)?' ('+error.message+')':'';return reply({error:'GroupMe '+stage+' failed'+code+diagnostic+'. Your clip can be retried; no message was sent.',release:'groupme-notify-emoji-1',...(error instanceof AudioDestinationError?{code:error.audioCode}:{})},502)}
+ }catch(error){const diagnostic=error instanceof AudioDestinationError?' ('+error.detail+') ['+error.audioCode+']'+(error.destinationHost?' Host: '+error.destinationHost:''):'';const code=/^HTTP \d{3}$/.test(error.message)?' ('+error.message+')':'';return reply({error:'GroupMe '+stage+' failed'+code+diagnostic+'. Your clip can be retried; no message was sent.',release:'groupme-notify-emoji-1',...(error instanceof AudioDestinationError?{code:error.audioCode,...(error.destinationHost?{destinationHost:error.destinationHost}:{})}:{})},502)}
 }
