@@ -71,3 +71,5 @@ dialog{border-radius:18px!important;border-color:var(--line)!important;backgroun
 @media(max-width:650px){#image-dialog{padding:12px}#image-dialog h2{font-size:15px}#image-original{font-size:11px}.chat-head #title{min-width:0}}
 
 .search-match{color:var(--text);background:color-mix(in srgb,var(--accent) 18%,var(--bg));border-radius:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:0 1px}.message-search-bar input{min-width:0}#message-search-count{font-size:11px;line-height:1.5;color:var(--muted)}
+
+#compose[data-drop=true] .composer-shell{border-color:var(--accent);background:var(--chat-selected);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 12%,transparent)}

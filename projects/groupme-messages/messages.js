@@ -236,13 +236,19 @@ function contactPhotoFor(message){
 
 $('attach-photo').onclick=()=>$('photo-file').click();
 $('remove-photo').onclick=()=>{if(!busy){pendingAudio=null;pendingPhoto=null;$('attachment-status').textContent='';$('remove-photo').hidden=true;saveDraft();$('attach-photo').focus({preventScroll:true})}};
-$('photo-file').onchange=async()=>{
- const file=$('photo-file').files?.[0];$('photo-file').value='';if(!file||busy||mode!=='groups'||!current)return;
- if(!['image/jpeg','image/png','image/gif','image/webp'].includes(file.type)||file.size>8000000){$('attachment-status').textContent='Choose a JPG, PNG, GIF or WebP photo under 8 MB.';$('remove-photo').hidden=false;return}
- pendingAudio=null;pendingPhoto=null;$('remove-photo').hidden=true;busy=true;$('send').disabled=true;$('attach-photo').disabled=true;$('attachment-status').textContent='Uploading photo…';
- try{const data=await api('upload',{method:'POST',headers:{'Content-Type':file.type},body:file});pendingPhoto=data.url;source=crypto.randomUUID();$('attachment-status').textContent=file.name+' · Ready to send';$('remove-photo').hidden=false}
- catch(error){$('attachment-status').textContent=error.message;$('remove-photo').hidden=false}finally{busy=false;saveDraft();$('attach-photo').disabled=false}
-};
+$('photo-file').onchange=()=>{const file=$('photo-file').files?.[0];$('photo-file').value='';return uploadPhoto(file)};
+async function uploadPhoto(file){
+ if(!file||busy||mode!=='groups'||!current)return;
+ const previous=!!(pendingPhoto||pendingAudio);
+ if(!['image/jpeg','image/png','image/gif','image/webp'].includes(file.type)||!file.size||file.size>8000000){$('attachment-status').textContent='Choose a JPG, PNG, GIF or WebP photo under 8 MB.'+(previous?' Your previous attachment is unchanged.':'');$('remove-photo').hidden=false;return}
+ busy=true;updateComposer();$('attach-photo').disabled=true;$('attachment-status').textContent='Uploading photo…';
+ try{const data=await api('upload',{method:'POST',headers:{'Content-Type':file.type},body:file});const url=attachmentURL(data?.url);if(!url||new URL(url).hostname!=='i.groupme.com')throw Error('The upload did not return a supported photo URL.');pendingAudio=null;pendingPhoto=url;source=crypto.randomUUID();$('attachment-status').textContent=(file.name||'Photo')+' · Ready to send';$('remove-photo').hidden=false}
+ catch(error){$('attachment-status').textContent=error.message+(previous?' Your previous attachment is still ready to send.':'');$('remove-photo').hidden=false}finally{busy=false;saveDraft();$('attach-photo').disabled=false}
+}
+$('text').onpaste=event=>{if(busy||mode!=='groups'||!current)return;const file=Array.from(event.clipboardData?.files||[]).find(file=>file.type.startsWith('image/'));if(!file)return;event.preventDefault();return uploadPhoto(file)};
+$('compose').ondragover=event=>{if(!Array.from(event.dataTransfer?.types||[]).includes('Files'))return;event.preventDefault();if(!busy&&mode==='groups'&&current){$('compose').dataset.drop='true';event.dataTransfer.dropEffect='copy'}};
+$('compose').ondragleave=event=>{if(!$('compose').contains?.(event.relatedTarget))delete $('compose').dataset.drop};
+$('compose').ondrop=event=>{delete $('compose').dataset.drop;const files=Array.from(event.dataTransfer?.files||[]);if(!files.length)return;event.preventDefault();if(files.length>1){$('attachment-status').textContent='Choose one photo at a time.';$('remove-photo').hidden=false;return}return uploadPhoto(files[0])};
 
 window.DockGroupMeAudioTarget={current:()=>mode==='groups'?current?.id:null,attach:(group,url)=>{if(busy||mode!=='groups'||current?.id!==group)throw Error('Return to the original group before attaching.');pendingAudio=url;pendingPhoto=null;source=crypto.randomUUID();$('attachment-status').textContent='Voice clip · Ready to send';$('remove-photo').hidden=false;saveDraft()}};
 
