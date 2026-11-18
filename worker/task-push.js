@@ -21,7 +21,7 @@ export class TaskPush {
  async init(){this.devices={};this.deviceIds=await this.ctx.storage.get('deviceIds')||[];for(const id of this.deviceIds){const device=await this.ctx.storage.get('device:'+id);if(device)this.devices[id]=device}this.keys=await this.ctx.storage.get('keys')||null;this.tokens=await this.ctx.storage.get('tokens')||{};}
  run(fn){const result=this.queue.then(async()=>{await this.ready;return fn()});this.queue=result.catch(()=>{});return result;}
  async ensureKeys(){if(!this.keys){const pair=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);this.keys={privateJwk:await crypto.subtle.exportKey('jwk',pair.privateKey),publicKey:b64(new Uint8Array(await crypto.subtle.exportKey('raw',pair.publicKey)))};await this.ctx.storage.put('keys',this.keys)}return this.keys;}
- async persist(){const ids=Object.keys(this.devices);for(const id of ids)await this.ctx.storage.put('device:'+id,this.devices[id]);for(const id of this.deviceIds)if(!this.devices[id])await this.ctx.storage.delete('device:'+id);await this.ctx.storage.put('deviceIds',ids);this.deviceIds=ids;let next=Infinity;for(const d of Object.values(this.devices)){if(d.reminders.length){const due=Math.min(...d.reminders.map(occurrence));next=Math.min(next,Math.max(due,d.retryAt||0))}}if(Number.isFinite(next))await this.ctx.storage.setAlarm(Math.max(Date.now()+1000,next));else await this.ctx.storage.deleteAlarm();}
+ async persist(){const ids=Object.keys(this.devices);for(const id of ids)await this.ctx.storage.put('device:'+id,this.devices[id]);for(const id of this.deviceIds)if(!this.devices[id])await this.ctx.storage.delete('device:'+id);await this.ctx.storage.put('deviceIds',ids);this.deviceIds=ids;let next=Infinity;for(const d of Object.values(this.devices)){if(d.testAt)next=Math.min(next,Math.max(d.testAt,d.retryAt||0));if(d.reminders.length){const due=Math.min(...d.reminders.map(occurrence));next=Math.min(next,Math.max(due,d.retryAt||0))}}if(Number.isFinite(next))await this.ctx.storage.setAlarm(Math.max(Date.now()+1000,next));else await this.ctx.storage.deleteAlarm();}
  async authorization(endpoint){const keys=await this.ensureKeys(),aud=new URL(endpoint).origin,now=Math.floor(Date.now()/1000);let cached=this.tokens[aud];if(!cached||cached.refresh<now){const key=await crypto.subtle.importKey('jwk',keys.privateJwk,{name:'ECDSA',namedCurve:'P-256'},false,['sign']);const jwt=await new SignJWT({aud,sub:'mailto:'+this.env.OWNER_EMAIL}).setProtectedHeader({alg:'ES256',typ:'JWT'}).setExpirationTime(now+12*3600).sign(key);cached={jwt,refresh:now+6*3600};this.tokens[aud]=cached;await this.ctx.storage.put('tokens',this.tokens)}return`vapid t=${cached.jwt}, k=${keys.publicKey}`;}
  async deliver(device){
   let authorization;try{authorization=await this.authorization(device.endpoint)}catch{const error=Error('The server could not sign the notification request. Please try again after the deployment.');error.code='push_signing_failed';throw error}
@@ -67,6 +67,7 @@ export class TaskPush {
   if(data.action==='schedule'){
    const now=Date.now(),reminders=validateReminders(data.reminders,now),previous=new Map(device.reminders.map(r=>[r.id,r]));device.reminders=reminders.flatMap(r=>{if(!r.repeat)return device.sent[r.id]===r.at?[]:[r];const old=previous.get(r.id),same=old&&old.at===r.at&&old.repeat===r.repeat&&old.timeZone===r.timeZone;return[{...r,nextAt:same?occurrence(old):recurrence.next(r.at,r.repeat,r.timeZone,Math.max(now-1,device.sent[r.id]||0))}]});const retain=new Set(reminders.map(r=>r.id));device.sent=Object.fromEntries(Object.entries(device.sent).filter(([id])=>retain.has(id)));device.retryAt=0;device.attempts=0;await this.persist();return json({scheduled:device.reminders.length});
   }
+  if(data.action==='test-delayed'){if(Date.now()-(device.lastTest||0)<30000)return json({error:'Wait 30 seconds between tests.'},429);device.lastTest=Date.now();device.testAt=Date.now()+10000;await this.persist();return json({scheduled:true,at:device.testAt})}
   if(data.action==='test'){
    if(Date.now()-(device.lastTest||0)<30000)return json({error:'Wait 30 seconds between test notifications.'},429);
    device.lastTest=Date.now();await this.persist();let code;try{code=await this.deliver(device)}catch(error){device.lastError=error.message;await this.persist();return json({error:device.lastError,code:error.code||'push_send_failed'},502)}
@@ -78,11 +79,11 @@ export class TaskPush {
  }catch(e){return json({error:e.message||'Invalid request.'},400)}});}
  alarm(){return this.run(async()=>{
   const now=Date.now();for(const[id,device]of Object.entries(this.devices)){
-   const due=device.reminders.filter(r=>occurrence(r)<=now);if(!due.length||(device.retryAt||0)>now)continue;
+   const due=device.reminders.filter(r=>occurrence(r)<=now),testDue=device.testAt&&device.testAt<=now;if((!due.length&&!testDue)||(device.retryAt||0)>now)continue;
    let code,sendError;try{code=await this.deliver(device)}catch(error){code=0;sendError=error.message}
    if(code===404||code===410){delete this.devices[id];continue}
-   if(code>=200&&code<300){advanceReminders(device,due,now);device.lastAccepted=now;device.lastError=null;device.attempts=0;device.retryAt=0}
-   else{device.attempts=(device.attempts||0)+1;device.lastError=sendError||'Delivery was not accepted by the push service ('+code+').';if(device.attempts>=3){advanceReminders(device,due,now);device.retryAt=0;device.attempts=0}else device.retryAt=now+60000*device.attempts}
+   if(code>=200&&code<300){if(testDue)delete device.testAt;advanceReminders(device,due,now);device.lastAccepted=now;device.lastError=null;device.attempts=0;device.retryAt=0}
+   else{device.attempts=(device.attempts||0)+1;device.lastError=sendError||'Delivery was not accepted by the push service ('+code+').';if(device.attempts>=3){if(testDue)delete device.testAt;advanceReminders(device,due,now);device.retryAt=0;device.attempts=0}else device.retryAt=now+60000*device.attempts}
   }await this.persist();
  });}
 }

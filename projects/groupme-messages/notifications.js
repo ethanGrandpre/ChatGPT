@@ -4,7 +4,7 @@ const scope=new URL('./',location.href).href;
 function message(text){$('push-status').textContent=text}
 async function api(data){const response=await fetch('/api/groupme-push?deviceId='+encodeURIComponent(deviceId||''),{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(25000),...(data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,deviceId})}:{})});let result;try{result=await response.json()}catch{throw Error('Sign into Dock again, then reconnect notifications.')}if(!response.ok){const error=Error(result.error||'Notification request failed.');error.status=response.status;error.code=result.code;throw error}return result}
 function current(){return window.DockGroupMeChat?.getCurrent()}
-function render(){const chat=current(),on=chat&&chats.has(chat.kind+':'+chat.id);$('chat-notify').disabled=busy||!chat||!supported;$('chat-notify').textContent=on?'Notify on':'Notify off';$('chat-notify').setAttribute('aria-pressed',String(!!on));$('chat-notify').title='Chat alerts on all enabled devices';$('push-enable').hidden=ready;$('push-enable').disabled=busy||!supported;$('push-test').disabled=busy||!supported;$('push-disable').hidden=!ready;$('push-disable').disabled=busy}
+function render(){const chat=current(),on=chat&&chats.has(chat.kind+':'+chat.id);$('chat-notify').disabled=busy||!chat||!supported;$('chat-notify').textContent=on?'Notify on':'Notify off';$('chat-notify').setAttribute('aria-pressed',String(!!on));$('chat-notify').title='Chat alerts on all enabled devices';$('push-enable').hidden=ready;$('push-enable').disabled=busy||!supported;$('push-test').disabled=busy||!supported;$('push-delayed').disabled=busy||!supported;$('push-disable').hidden=!ready;$('push-disable').disabled=busy}
 function keyBytes(key){return Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))}
 async function enable(){
  if(!supported)throw Error('Use Android Chrome or a desktop browser with Web Push. On iPhone/iPad, add this app to the Home Screen first.');
@@ -14,7 +14,7 @@ async function enable(){
  const config=await api();chats=new Set(config.chats||[]);$('notification-previews').checked=config.previews!==false;subscription=await registration.pushManager.getSubscription();
  if(subscription?.options?.applicationServerKey){const actual=new Uint8Array(subscription.options.applicationServerKey),expected=keyBytes(config.publicKey);if(actual.length!==expected.length||actual.some((x,i)=>x!==expected[i])){await subscription.unsubscribe();subscription=null}}
  if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(config.publicKey)});
- await api({action:'subscribe',subscription:subscription.toJSON()});ready=true;message('This device is enabled. Chat choices apply to all enabled phones and computers.');
+ await api({action:'subscribe',subscription:subscription.toJSON()});ready=true;presence();message('This device is enabled. Chat choices apply to all enabled phones and computers.');
 }
 async function action(fn){if(busy)return;busy=true;render();try{await fn()}catch(error){if(error.status===409){ready=false;if(error.code==='subscription_expired'){try{await subscription?.unsubscribe()}catch{}subscription=null}}message(error.message);$('notifications-dialog').showModal()}finally{busy=false;render()}}
 $('push-settings').onclick=()=>$('notifications-dialog').showModal();$('push-close').onclick=()=>$('notifications-dialog').close();$('push-enable').onclick=()=>action(enable);
@@ -23,8 +23,17 @@ $('push-test').onclick=()=>action(async()=>{if(!ready)await enable();await api({
 $('push-disable').onclick=()=>action(async()=>{await api({action:'disable'});ready=false;try{await subscription?.unsubscribe()}catch{}subscription=null;message('Notifications disabled on this device. Other enabled devices keep their alerts.');});
 window.DockGroupMeNotifications={chatChanged:render};
 async function initialize(){try{deviceId=localStorage.getItem(KEY);if(!/^[a-f0-9-]{36}$/i.test(deviceId||'')){deviceId=crypto.randomUUID();localStorage.setItem(KEY,deviceId)}if(!supported){message('Web Push is unavailable in this browser. Use Android Chrome or a supported desktop browser.');return}const config=await api();chats=new Set(config.chats||[]);$('notification-previews').checked=config.previews!==false;registration=await navigator.serviceWorker.getRegistration(scope);subscription=await registration?.pushManager.getSubscription();if(registration?.update)registration.update().catch(()=>{});ready=!!subscription&&config.subscribed&&Notification.permission==='granted';message(ready?'This device is enabled. Choose Notify on in any chat.':'Enable this device, then choose Notify on in the chats you want.');}catch(error){message(error.message)}finally{render()}}
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!busy)api().then(config=>{chats=new Set(config.chats||[]);$('notification-previews').checked=config.previews!==false;render()}).catch(()=>{})});initialize();
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!busy)api().then(config=>{chats=new Set(config.chats||[]);$('notification-previews').checked=config.previews!==false;render()}).catch(()=>{})});initialize().then(presence);
 
 setInterval(()=>{if(supported&&deviceId&&document.visibilityState==='visible'&&!busy)api().then(config=>{chats=new Set(config.chats||[]);$('notification-previews').checked=config.previews!==false;if(!config.subscribed)ready=false;render()}).catch(()=>{})},30000);
 
 $('notification-previews').onchange=()=>{const previews=$('notification-previews').checked;action(async()=>{try{await api({action:'privacy',previews})}catch(error){$('notification-previews').checked=!previews;throw error};message(previews?'Message previews enabled on all devices.':'Private notifications enabled on all devices. Already delivered notifications are unchanged.')})};
+
+$('push-delayed').onclick=()=>action(async()=>{if(!ready)await enable();await api({action:'test-delayed'});message('Scheduled on Cloudflare for 10 seconds from now. You can close this tab. Browser delivery may take longer.')});
+const presenceTab=crypto.randomUUID();
+function focusedChat(){const chat=current();return document.visibilityState==='visible'&&document.hasFocus()&&window.DockGroupMeChat?.isVisible()?chat:null}
+async function presence(){if(!ready||!deviceId)return;try{await api({action:'presence',tab:presenceTab,chat:focusedChat()})}catch{}}
+const previousChatChanged=window.DockGroupMeNotifications.chatChanged;window.DockGroupMeNotifications.chatChanged=()=>{previousChatChanged();presence()};
+for(const event of ['focus','blur','pageshow'])window.addEventListener(event,presence);document.addEventListener('visibilitychange',presence);setInterval(presence,15000);
+window.addEventListener('pagehide',()=>{if(ready&&deviceId)fetch('/api/groupme-push',{method:'POST',credentials:'same-origin',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'presence',deviceId,tab:presenceTab,chat:null})}).catch(()=>{})});
+navigator.serviceWorker?.addEventListener?.('message',event=>{if(event.data?.type==='groupme-focus-query')event.ports?.[0]?.postMessage({chat:focusedChat()})});

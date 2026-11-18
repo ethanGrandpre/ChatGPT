@@ -77,3 +77,8 @@ Settings → Send animation offers Glide, Arc, Spring, Flip, Comet, or Off. Conf
 GroupMe chat watches and Tasks reminder schedules already run in Cloudflare Durable Object alarms without an open Dock page. Enable notifications separately for each device and enable Notify for desired GroupMe chats; Tasks reminders must finish syncing before closing Dock. Force-stopping Chrome, blocked notifications, battery restrictions, expired subscriptions, or no network can delay/prevent delivery. An expired Dock session can produce a generic GroupMe alert. Server restart tests verify both schedulers continue without client polling.
 
 Send styles all take 560 ms: Glide travels straight at full size; Arc follows a broad sideways curve; Spring overshoots and visibly squashes/bounces; Flip turns edge-on in 3D; Comet becomes a narrow streak with an accent trail before expanding into its bubble. Arc bends toward available screen space.
+
+## Closed-tab tests and focused-chat alerts
+Device notifications → **Test in 10 seconds** schedules a test in Cloudflare. Wait for the scheduling confirmation, then close the tab. Tasks has the same delayed test. No page timer is needed; browser/OS delivery may take longer than the server deadline. Test notifications bypass chat-focus suppression.
+
+GroupMe suppresses alerts for the exact chat actively viewed on each device, including topics. Other chats and other devices retain alerts. The page reports focus and visibility with a 15-second heartbeat; stale focus expires after 45 seconds if a tab disappears without a clean close. A service-worker focus query also checks open windows when a push arrives and acknowledges alerts already being viewed. Returning to the chat list or backgrounding/blurring the tab clears active focus.

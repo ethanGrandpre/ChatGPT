@@ -8,7 +8,7 @@ async function api(data){
 }
 function keyBytes(key){const raw=atob(key.replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(raw,c=>c.charCodeAt(0))}
 function sameKey(sub,key){const existing=sub?.options?.applicationServerKey;if(!existing)return true;const a=new Uint8Array(existing),b=keyBytes(key);return a.length===b.length&&a.every((v,i)=>v===b[i])}
-function buttons(){const on=!!subscription&&ready;$('#enable-notifications').hidden=on;$('#enable-notifications').disabled=busy;$('#disable-notifications').hidden=!on;$('#disable-notifications').disabled=busy;$('#test-notification').disabled=busy}
+function buttons(){const on=!!subscription&&ready;$('#enable-notifications').hidden=on;$('#enable-notifications').disabled=busy;$('#disable-notifications').hidden=!on;$('#disable-notifications').disabled=busy;$('#test-delayed-notification').disabled=busy;$('#test-notification').disabled=busy}
 function reminders(){const now=Date.now();return getTasks().filter(t=>t.status!=='done'&&Number.isFinite(t.remindAt)&&(t.remindAt>now-86400000||t.repeat&&t.repeat!=='none')&&t.remindAt>=0&&t.remindAt<=now+366*86400000).map(t=>({id:t.id,at:t.remindAt,title:t.title,due:t.due||'',...(t.repeat&&t.repeat!=='none'?{repeat:t.repeat,timeZone:t.timeZone}:{})}))}
 async function recover(error){if(error.status===409){ready=false;if(error.code==='subscription_expired'){try{await subscription?.unsubscribe()}catch{}subscription=null}buttons()}}
 async function saveDetails(items=reminders()){
@@ -29,8 +29,8 @@ function activated(){let timer;return Promise.race([navigator.serviceWorker.read
 export async function initNotifications(readTasks){
  getTasks=readTasks;
  const supported='serviceWorker'in navigator&&'PushManager'in window&&'Notification'in window&&window.isSecureContext;
- if(!supported){setStatus('Web Push is unavailable here. Open this page in Android Chrome (not an in-app browser). On iPhone/iPad, add Tasks to the Home Screen first.');$('#enable-notifications').disabled=true;$('#test-notification').disabled=true;return}
- try{deviceId=localStorage.getItem(DEVICE);if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem(DEVICE,deviceId)}}catch{setStatus('Browser storage is unavailable; device notifications cannot be configured.');$('#enable-notifications').disabled=true;$('#test-notification').disabled=true;return}
+ if(!supported){setStatus('Web Push is unavailable here. Open this page in Android Chrome (not an in-app browser). On iPhone/iPad, add Tasks to the Home Screen first.');$('#enable-notifications').disabled=true;$('#test-notification').disabled=true;$('#test-delayed-notification').disabled=true;return}
+ try{deviceId=localStorage.getItem(DEVICE);if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem(DEVICE,deviceId)}}catch{setStatus('Browser storage is unavailable; device notifications cannot be configured.');$('#enable-notifications').disabled=true;$('#test-notification').disabled=true;$('#test-delayed-notification').disabled=true;return}
  async function enable(){
   // Run directly from the click, before any network await, for mobile permission rules.
   const permission=await Notification.requestPermission();if(permission!=='granted')throw Error(permission==='denied'?'Permission blocked. Allow notifications for this site in browser settings and allow Chrome notifications in Android Settings.':'Permission was not granted. Tap Enable notifications to try again.');
@@ -49,6 +49,7 @@ export async function initNotifications(readTasks){
   if(!ready)throw Error('Connect notifications on this device before sending a test.');
   setStatus('Sending test notification…');const result=await api({action:'test'});setStatus(result.message+' Check your phone’s notification tray.');
  });
+ $('#test-delayed-notification').onclick=()=>action(async()=>{if(!ready||!subscription)await enable();if(!ready)throw Error('Enable notifications first.');await api({action:'test-delayed'});setStatus('Scheduled on Cloudflare for 10 seconds from now. You can close this tab. Browser delivery may take longer.');});
  window.addEventListener('online',()=>{if(!busy)sync(true)});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ready&&!busy)sync(true)});
  const start=generation;
  try{
