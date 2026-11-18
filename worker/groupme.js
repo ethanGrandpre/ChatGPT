@@ -1,5 +1,6 @@
 import {groupmeImage} from './groupme-image.js';
 import {groupmeAudio,audioURL} from './groupme-audio.js';
+import {groupmeTopics} from './groupme-topics.js';
 import {groupmeLive} from './groupme-live.js';
 // All calls reach this module only after Dock owner authentication.
 export const GROUPME_RELEASE='groupme-notify-emoji-1';
@@ -17,6 +18,7 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
  if(/[^\x21-\x7e]/.test(token))return failure('The saved token contains invalid characters. Copy only Your Access Token from GroupMe’s application page.','TOKEN_FORMAT',503);
  if(action==='image'&&request.method==='GET')return groupmeImage(request,token,networkFetch);
  if(action==='audio')return groupmeAudio(request,token,networkFetch);
+ if(['topics','topic-create','topic-delete'].includes(action))return groupmeTopics(request,token,networkFetch);
  if(action==='upload'&&request.method==='POST'){
   if(request.headers.get('Origin')!==url.origin)return failure('Invalid origin.','ORIGIN',403);
   const type=request.headers.get('Content-Type');if(!['image/jpeg','image/png','image/gif','image/webp'].includes(type))return failure('Choose a JPG, PNG, GIF or WebP photo.','FILE_TYPE',400);
