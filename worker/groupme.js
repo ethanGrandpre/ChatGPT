@@ -1,3 +1,4 @@
+import {groupmeImage} from './groupme-image.js';
 import {groupmeAudio,audioURL} from './groupme-audio.js';
 import {groupmeLive} from './groupme-live.js';
 // All calls reach this module only after Dock owner authentication.
@@ -14,6 +15,7 @@ export async function groupme(request,env,networkFetch=fetch.bind(globalThis)){
  const token=typeof env.GROUPME_ACCESS_TOKEN==='string'?env.GROUPME_ACCESS_TOKEN.trim():'';
  if(!token)return failure('Add GROUPME_ACCESS_TOKEN as a Secret on the chatgpt Worker, then save and deploy.','SETUP',503);
  if(/[^\x21-\x7e]/.test(token))return failure('The saved token contains invalid characters. Copy only Your Access Token from GroupMe’s application page.','TOKEN_FORMAT',503);
+ if(action==='image'&&request.method==='GET')return groupmeImage(request,token,networkFetch);
  if(action==='audio')return groupmeAudio(request,token,networkFetch);
  if(action==='upload'&&request.method==='POST'){
   if(request.headers.get('Origin')!==url.origin)return failure('Invalid origin.','ORIGIN',403);
