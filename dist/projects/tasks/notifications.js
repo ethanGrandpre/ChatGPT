@@ -50,6 +50,7 @@ export async function initNotifications(readTasks){
   setStatus('Sending test notification…');const started=Date.now();await api({action:'test'});setStatus('Push accepted. Waiting for display confirmation…');monitorDelivery(started);
  });
  $('#test-delayed-notification').onclick=()=>action(async()=>{await enable();if(!ready)throw Error('Enable notifications first.');const started=Date.now();await api({action:'test-delayed'});monitorDelivery(started);setStatus('Scheduled on Cloudflare for 10 seconds from now. You can close this tab. Browser delivery may take longer.');});
+ window.addEventListener('dock-notifications-connected',async event=>{if(!event.detail?.projects?.includes('tasks'))return;try{registration=await navigator.serviceWorker.getRegistration(new URL('./',location.href).href);subscription=await registration?.pushManager.getSubscription();ready=!!subscription&&Notification.permission==='granted';if(ready)await sync(true);buttons()}catch(error){setStatus(error.message)}});
  window.addEventListener('online',()=>{if(!busy)sync(true)});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ready&&!busy)sync(true)});
  const start=generation;
  try{
