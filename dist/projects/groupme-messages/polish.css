@@ -172,3 +172,5 @@ dialog{border-radius:18px!important;border-color:var(--line)!important;backgroun
 
 /* Tool expansion is anchored explicitly so the bottom bubble stays in view. */
 @media(hover:hover) and (pointer:fine){#messages{overflow-anchor:none}}
+
+.context-effect{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:2500}.context-effect i{position:absolute;left:var(--side);width:8px;height:12px;background:var(--color);animation:context-burst 1.2s var(--delay) ease-out both}.context-love i{background:none;width:auto;height:auto;color:#dfa8b9}.context-love i::before{content:'♥';font-size:20px}.context-gratitude i{background:none;width:auto;height:auto;color:#d9bb73}.context-gratitude i::before{content:'✦';font-size:21px}@keyframes context-burst{0%{opacity:0;transform:translate(0,0) rotate(0)}12%{opacity:.9}100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--turn))}}@media(prefers-reduced-motion:reduce){.context-effect{display:none}}html[data-groupme-motion=quick] .context-effect{display:none}
