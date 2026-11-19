@@ -150,3 +150,7 @@ dialog{border-radius:18px!important;border-color:var(--line)!important;backgroun
 .message[data-own=true][data-swiping=true]::after{left:auto;right:-34px}
 .message[data-swipe-ready=true]::after{background:var(--accent);color:var(--button-text)}
 @media(prefers-reduced-motion:no-preference){html:not([data-groupme-motion=quick]) .message:not([data-swiping=true]){transition:padding-top .14s ease,translate .18s ease-out}}
+
+#saved-dialog{width:min(560px,calc(100vw - 24px));padding:22px;max-height:85dvh}#saved-dialog .saved-note{font-size:12px;line-height:1.6;color:var(--muted)}#saved-search{min-height:44px;font-size:16px}#saved-list{max-height:50dvh;overflow:auto;margin-top:12px}#saved-list article{padding:16px 0;border-bottom:1px solid var(--line)}#saved-list small{font-size:11px;color:var(--muted)}#saved-list p{color:var(--text);font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0}#saved-list article>div{display:flex;gap:8px;flex-wrap:wrap}#saved-list button{min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:12px}#saved-list button:first-child{background:var(--chat-surface)}
+@media(max-width:650px){#saved-messages{display:none}.chat-app[data-tools=open] .chat-head #saved-messages{display:block;min-height:44px}}
+.message[data-actions=open]{z-index:6}
