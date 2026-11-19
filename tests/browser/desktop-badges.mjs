@@ -10,7 +10,7 @@ const browser=await chromium.launch({headless:true,executablePath:'/usr/bin/chro
 try{
  const page=await browser.newPage({viewport:{width:1440,height:900}});
  const errors=[],reactions=[];page.on('pageerror',e=>errors.push(e.message));
- await page.addInitScript(()=>localStorage.setItem('__dock_notification_setup',JSON.stringify({version:'notifications-2026-11-v3'})));
+ await page.addInitScript(()=>localStorage.setItem('__dock_notification_setup',JSON.stringify({version:'notifications-2026-11-v4-desktop'})));
  const history=[{id:'1',user_id:'2',name:'Alex',text:'An incoming message',created_at:1700000000,favorited_by:['3','4']},{id:'2',user_id:'1',name:'Owner',text:'My outgoing message',created_at:1700000002,favorited_by:['2']}];
  await page.route('**/projects.json',r=>r.fulfill({json:[]}));
  await page.route('**/api/**',r=>r.fulfill({json:{entries:{},revision:1}}));

@@ -1,5 +1,5 @@
 // Shared authenticated setup; device identifiers must never sync across devices.
-export const SETUP_VERSION='notifications-2026-11-v3';
+export const SETUP_VERSION='notifications-2026-11-v4-desktop';
 export const PROJECTS={groupme:{name:'GroupMe',folder:'groupme-messages',key:'dock-groupme-device-v1',api:'/api/groupme-push'},tasks:{name:'Tasks',folder:'tasks',key:'dock-tasks-device-v1',api:'/api/tasks-push'}};
 export function keyBytes(key){if(typeof key!=='string'||!key)throw Error('The notification server returned no public key.');return Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))}
 export async function pushRequest(project,deviceId,data,network=fetch){const response=await network(project.api+'?deviceId='+encodeURIComponent(deviceId),{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(25000),...(data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,deviceId})}:{})});let result;try{result=await response.json()}catch{throw Error('Sign into Dock again. The notification server returned an unreadable response.')}if(!response.ok)throw Error(result.error||'Notification setup failed ('+response.status+').');return result}
