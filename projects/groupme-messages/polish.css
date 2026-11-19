@@ -137,3 +137,16 @@ dialog{border-radius:18px!important;border-color:var(--line)!important;backgroun
 .message .reply-context{position:relative;display:flex;flex-direction:column;gap:3px;align-items:flex-start;max-width:100%;min-height:44px;margin:6px 0 9px;padding:8px 12px;border:1px solid var(--line);border-radius:11px;background:var(--chat-incoming);color:var(--muted);text-align:left;font-size:11px;line-height:1.4}.reply-context::before{content:'';position:absolute;left:-12px;top:50%;bottom:-12px;width:10px;border-left:1px solid var(--line);border-top:1px solid var(--line);border-top-left-radius:8px}.reply-context strong{font-size:10px;color:var(--text);font-weight:500}.reply-context span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.message[data-own=true] .reply-context{margin-left:auto}.message[data-own=true] .reply-context::before{left:auto;right:-12px;border-left:0;border-right:1px solid var(--line);border-top-left-radius:0;border-top-right-radius:8px}.reply-context:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.message[data-reply-target=true]>p{outline:2px solid var(--accent);outline-offset:2px}
 
 #push-chat-status{white-space:pre-line;font-size:11px;line-height:1.7;color:var(--muted);max-height:180px;overflow:auto}#push-chat-status:empty{display:none}
+
+/* Reactions sit on the bubble's lower edge, toward the conversation center. */
+.chat-app .message[data-reactions=true]{padding-bottom:19px}
+.message .message-reaction-badge{position:absolute;bottom:3px;right:12px;left:auto;z-index:2;display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:28px;min-width:40px;padding:3px 9px;border:2px solid var(--bg);border-radius:20px;background:var(--chat-selected);color:var(--text);font-size:12px;line-height:18px;box-shadow:0 1px 3px #0002}
+.message[data-own=true] .message-reaction-badge{left:12px;right:auto}
+.message .message-reaction-badge[aria-pressed=true]{box-shadow:0 0 0 1px var(--accent)}
+.message .message-reaction-badge:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.message{touch-action:pan-y pinch-zoom}
+.message[data-swiping=true]{will-change:translate}
+.message[data-swiping=true]::after{content:'↩';position:absolute;top:50%;left:-34px;width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:var(--chat-surface);color:var(--muted);font-size:20px}
+.message[data-own=true][data-swiping=true]::after{left:auto;right:-34px}
+.message[data-swipe-ready=true]::after{background:var(--accent);color:var(--button-text)}
+@media(prefers-reduced-motion:no-preference){html:not([data-groupme-motion=quick]) .message:not([data-swiping=true]){transition:padding-top .14s ease,translate .18s ease-out}}
