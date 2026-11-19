@@ -169,3 +169,6 @@ dialog{border-radius:18px!important;border-color:var(--line)!important;backgroun
  .conversation-status .message-navigation button{max-width:none;min-height:28px;margin:0;padding:4px 10px;font-size:10px;line-height:1.4;white-space:nowrap}
  .conversation-status #status[data-error=true]{flex-basis:100%;margin:0;padding:8px;line-height:1.5}
 }
+
+/* Tool expansion is anchored explicitly so the bottom bubble stays in view. */
+@media(hover:hover) and (pointer:fine){#messages{overflow-anchor:none}}
