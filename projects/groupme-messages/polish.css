@@ -154,3 +154,18 @@ dialog{border-radius:18px!important;border-color:var(--line)!important;backgroun
 #saved-dialog{width:min(560px,calc(100vw - 24px));padding:22px;max-height:85dvh}#saved-dialog .saved-note{font-size:12px;line-height:1.6;color:var(--muted)}#saved-search{min-height:44px;font-size:16px}#saved-list{max-height:50dvh;overflow:auto;margin-top:12px}#saved-list article{padding:16px 0;border-bottom:1px solid var(--line)}#saved-list small{font-size:11px;color:var(--muted)}#saved-list p{color:var(--text);font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0}#saved-list article>div{display:flex;gap:8px;flex-wrap:wrap}#saved-list button{min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:12px}#saved-list button:first-child{background:var(--chat-surface)}
 @media(max-width:650px){#saved-messages{display:none}.chat-app[data-tools=open] .chat-head #saved-messages{display:block;min-height:44px}}
 .message[data-actions=open]{z-index:6}
+
+.conversation-status{display:contents}
+@media(min-width:651px){
+ .conversation-status{display:flex;flex:none;align-items:center;flex-wrap:wrap;gap:4px 12px;padding:5px 0;min-width:0}
+ .conversation-status #status:not([data-error=true]){flex:0 1 auto;margin:0;padding:0;font-size:10px;line-height:1.4}
+ .conversation-status #live-status{flex:none;font-size:9px;line-height:1.4}
+ .conversation-status .connection-info{flex:none;margin:0;padding:0}
+ .conversation-status .connection-info summary{font-size:9px;line-height:1.4;cursor:pointer}
+ .conversation-status .connection-info[open]{flex-basis:100%;order:2}
+ .conversation-status #setup{font-size:11px}
+ .conversation-status #older{flex:none;min-height:28px;margin:0;padding:4px 10px;font-size:10px;line-height:1.4}
+ .conversation-status .message-navigation{margin-left:auto;gap:6px}
+ .conversation-status .message-navigation button{max-width:none;min-height:28px;margin:0;padding:4px 10px;font-size:10px;line-height:1.4;white-space:nowrap}
+ .conversation-status #status[data-error=true]{flex-basis:100%;margin:0;padding:8px;line-height:1.5}
+}
