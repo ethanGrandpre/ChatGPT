@@ -1,8 +1,10 @@
 // Local, deliberately conservative cues, not an AI assessment of someone's mood.
+export function effectCooldown(value){return sensitivityLevel(value)===5?3000:10000}
 export function sensitivityLevel(value){const n=Number(value);return Number.isFinite(n)?Math.max(1,Math.min(5,Math.round(n))):3}
 export function contextEmotion(text,context=[],sensitivity=3){
  const raw=String(text||'');if(raw.length>600||/[`]|https?:\/\//i.test(raw)||/^\s*>/m.test(raw))return null;
  const t=raw.toLowerCase().replace(/[’']/g,'');
+ if(/^i cant live without you[.!…\s]*$/.test(t)&&!context.some(s=>/\b(died|death|funeral|suicide)\b/i.test(String(s))))return 'love';
  // Never amplify grief, threats, negation or obvious sarcasm, even at high sensitivity.
  if(/\b(no|not|never|isnt|wasnt|dont|cant|wish|pretending|sarcasm|sarcastic|jk|kidding|died|death|funeral|suicide|kill|depressed)\b/.test(t)||/yeah right|as if|yay.*(?:more homework|another exam|another test)/.test(t))return null;
  const negative=/\b(sad|upset|angry|hate|died|death|funeral|failed|failure|lost|sick|hurt|unhappy|crying)\b/;
@@ -11,6 +13,10 @@ export function contextEmotion(text,context=[],sensitivity=3){
  const clearWin=/\b(i|we) (won|passed|got (the job|accepted|promoted))\b/.test(t);
  const threshold=6-sensitivityLevel(sensitivity),boost=/!!|[A-Z]{4,}/.test(raw)?1:0;
  const rules=[
+ ['frustration',4,/\bugh.*\b(sucks|annoying|awful)|\bthis sucks\b/],
+ ['celebration',4,/\b(thats|that is|this is) (so |really )?(amazing|awesome|great|wonderful)\b/],
+ ['anxiety',4,/\byou make me (so |really )?(nervous|anxious|worried)\b/],
+ ['anger',4,/\bhow dare you\b/],
  ['anger',4,/\b(i ?m|im|i am|feeling) (so |really |very )?(angry|furious|mad|livid)\b/],
  ['anxiety',4,/\b(i ?m|im|i am|feeling) (so |really |very )?(anxious|nervous|worried|stressed)\b/],
  ['fear',4,/\b(i ?m|im|i am|feeling) (so |really |very )?(scared|afraid|terrified|frightened)\b/],
@@ -23,6 +29,27 @@ export function contextEmotion(text,context=[],sensitivity=3){
  ['confidence',4,/\b(i ?m|im|i am|feeling) (so |really |very )?confident\b|\bive got this\b/],
  ['hope',4,/\b(i ?m|im|i am|feeling) (so |really |very )?(hopeful|optimistic)\b/],
  ['curiosity',4,/\b(i ?m|im|i am|feeling) (so |really |very )?(curious|intrigued)\b/],
+ // Short emotional words and individual emojis at Super sensitive only.
+ ['sadness',1,/\b(sad|upset|lonely|heartbroken)\b|😢|😭|💔/],
+ ['frustration',1,/\b(ugh|annoying|annoyed|frustrating|frustrated)\b|😤/],
+ ['anger',1,/\b(angry|furious|mad|livid)\b|😠|😡|🤬/],
+ ['anxiety',1,/\b(anxious|nervous|worried|stressed)\b|😰|😟/],
+ ['fear',1,/\b(scary|scared|afraid|terrified)\b|😨|😱/],
+ ['embarrassment',1,/\b(embarrassed|awkward|oops)\b|😳|🙈|🫣/],
+ ['disappointment',1,/\b(disappointed|disappointing|bummer)\b|😞|😔/],
+ ['fatigue',1,/\b(tired|sleepy|exhausted|sleep)\b|😴|💤/],
+ ['boredom',1,/\b(bored|boring)\b|🥱/],
+ ['confusion',1,/\b(confused|confusing|huh|what)\b|😕|❔/],
+ ['pride',1,/\b(proud|nailed it)\b|🏆|🏅/],
+ ['confidence',1,/\b(confident|got this|lets go)\b|😎|💪/],
+ ['hope',1,/\b(hopeful|optimistic|hopefully)\b|🤞|🌈/],
+ ['curiosity',1,/\b(curious|interesting|intriguing)\b|🧐|🔎/],
+ ['love',1,/\b(love|lovely|cute|adorable)\b|😍|🥰|😘/],
+ ['gratitude',1,/\b(thx|ty|tysm|grateful|appreciate)\b|🙏/],
+ ['laughter',1,/\b(lol|haha|hehe|funny|rofl)\b|😆|😹/],
+ ['surprise',1,/\b(wow|whoa|woah|omg|surprised|unbelievable)\b|😮|🤯/],
+ ['relief',1,/\b(phew|whew|finally|relieved)\b|😌/],
+ ['celebration',1,/\b(happy|excited|yes+|yay+|yayyy|yess+|woo+|awesome|amazing|nice|great|cool)\b|😊|😁|🥳|🎉/],
  ['sadness',4,/\b(i ?m|im|i am|feeling) (so |really |very )?(sad|upset|down|lonely)\b/],
  ['frustration',4,/\b(i ?m|im|i am|feeling) (so |really |very )?(frustrated|annoyed|irritated)\b/],
  ['celebration',4,/\b(i ?m|im|i am|we ?re|we are) (so |really |super )?(happy|excited|thrilled)\b/],
@@ -40,7 +67,7 @@ export function contextEmotion(text,context=[],sensitivity=3){
  ['celebration',1,/\b(awesome|amazing|nice|great)\b|🎉|🥳/]
  ];
  if(clearWin&&!negative.test(t)&&4+boost>=threshold)return 'celebration';
- for(const [emotion,score,pattern]of rules){const quiet=['sadness','frustration','anger','anxiety','fear','embarrassment','disappointment','fatigue','boredom','confusion'].includes(emotion);if(pattern.test(t)&&score+boost>=threshold&&(quiet||!badContext&&!negative.test(t)))return emotion}return null;
+ for(const [emotion,score,pattern]of rules.sort((a,b)=>b[1]-a[1])){const quiet=['sadness','frustration','anger','anxiety','fear','embarrassment','disappointment','fatigue','boredom','confusion'].includes(emotion);if((score!==1||sensitivityLevel(sensitivity)===5)&&pattern.test(t)&&score+boost>=threshold&&(quiet||!badContext&&!negative.test(t)))return emotion}return null;
 }
 
 export const EMOTIONS={celebration:['Celebration','🎉 🥳 ✨'],love:['Affection','❤️ 🫶 💖'],gratitude:['Gratitude','🙏 💛 ✨'],laughter:['Laughter','😂 🤣 😆'],surprise:['Surprise','😮 🤯 ✨'],relief:['Relief','😌 🍃 💚'],sadness:['Sadness','💙 🥺 💧'],frustration:['Frustration','😤 💨 🌀'],anger:['Anger','😠 💢 😤'],anxiety:['Anxiety','😰 🫧 💜'],fear:['Fear','😨 😧 💜'],embarrassment:['Embarrassment','😳 🙈 🫣'],disappointment:['Disappointment','😞 💙 🫧'],fatigue:['Fatigue','😴 💤 🌙'],boredom:['Boredom','🥱 🫠 🫧'],confusion:['Confusion','😕 ❔ 🌀'],pride:['Pride','🏆 🌟 💪'],confidence:['Confidence','😎 💪 ⭐'],hope:['Hope','🌈 🌱 ✨'],curiosity:['Curiosity','🧐 🔎 💡']};
@@ -55,5 +82,5 @@ function setupChoices(){readChoices();const root=document.getElementById('contex
 
 let overlay,timer,last=0;const seen=new Set();
 export function stop(){clearTimeout(timer);overlay?.remove();overlay=null}
-export function receive(items,{ownerId,context=[],chat,sensitivity=3}={}){if(typeof document==='undefined'||document.visibilityState!=='visible'||!window.DockGroupMeChat?.isVisible()||document.documentElement.dataset.groupmeMotion==='quick'||matchMedia('(prefers-reduced-motion:reduce)').matches)return;let emotion;for(const m of items.slice(-5)){const key=chat+':'+m.id;if(seen.has(key))continue;seen.add(key);if(seen.size>500)seen.delete(seen.values().next().value);if(String(m.user_id||m.sender_id)===String(ownerId)||m.system||m.sender_type==='system'||m.attachments?.some(a=>a.type==='reply')||!Number.isFinite(m.created_at)||Math.abs(Date.now()-m.created_at*1000)>90000)continue;emotion=contextEmotion(m.text,context,sensitivity)||emotion}if(!emotion||Date.now()-last<10000)return;const emojis=emojiChoices(emotion);if(!emojis.length)return;last=Date.now();stop();overlay=document.createElement('div');overlay.className='context-effect context-'+emotion;overlay.setAttribute('aria-hidden','true');overlay.inert=true;for(let i=0;i<(emotion==='celebration'?36:12);i++){const bit=document.createElement('i');const side=i%2;bit.className='context-emoji';bit.textContent=emojis[i%emojis.length];bit.style.cssText=`--side:${side?'100%':'0%'};--dx:${(side?-1:1)*(innerWidth*(.24+Math.random()*.26))}px;--dy:${-150+Math.random()*300}px;--turn:${Math.random()*720}deg;--delay:${Math.random()*180}ms;--emoji-size:${28+Math.random()*32}px;top:${35+Math.random()*35}%`;overlay.append(bit)}document.body.append(overlay);timer=setTimeout(stop,1600)}
+export function receive(items,{ownerId,context=[],chat,sensitivity=3}={}){if(typeof document==='undefined'||document.visibilityState!=='visible'||!window.DockGroupMeChat?.isVisible()||document.documentElement.dataset.groupmeMotion==='quick'||matchMedia('(prefers-reduced-motion:reduce)').matches)return;let emotion;for(const m of items.slice(-5)){const key=chat+':'+m.id;if(seen.has(key))continue;seen.add(key);if(seen.size>500)seen.delete(seen.values().next().value);if(String(m.user_id||m.sender_id)===String(ownerId)||m.system||m.sender_type==='system'||m.attachments?.some(a=>a.type==='reply')||!Number.isFinite(m.created_at)||Math.abs(Date.now()-m.created_at*1000)>90000)continue;emotion=contextEmotion(m.text,context,sensitivity)||emotion}if(!emotion||Date.now()-last<effectCooldown(sensitivity))return;const emojis=emojiChoices(emotion);if(!emojis.length)return;last=Date.now();stop();overlay=document.createElement('div');overlay.className='context-effect context-'+emotion;overlay.setAttribute('aria-hidden','true');overlay.inert=true;for(let i=0;i<(emotion==='celebration'?36:12);i++){const bit=document.createElement('i');const side=i%2;bit.className='context-emoji';bit.textContent=emojis[i%emojis.length];bit.style.cssText=`--side:${side?'100%':'0%'};--dx:${(side?-1:1)*(innerWidth*(.24+Math.random()*.26))}px;--dy:${-150+Math.random()*300}px;--turn:${Math.random()*720}deg;--delay:${Math.random()*180}ms;--emoji-size:${28+Math.random()*32}px;top:${35+Math.random()*35}%`;overlay.append(bit)}document.body.append(overlay);timer=setTimeout(stop,1600)}
 if(typeof window!=='undefined'){window.DockGroupMeContextReactions={receive,stop};setupChoices();document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')stop()});window.addEventListener('pagehide',stop)}
