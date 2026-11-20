@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {contextEmotion,sensitivityLevel,EMOTIONS,parseEmojiChoices,effectCooldown} from '../projects/groupme-messages/context-reactions.js';
+import test from 'node:test';import assert from 'node:assert/strict';import {contextEmotion,sensitivityLevel,EMOTIONS,parseEmojiChoices,effectCooldown,effectDuration} from '../projects/groupme-messages/context-reactions.js';
 test('clear celebration, love and gratitude cues',()=>{for(const text of ['YAY!!!','IM SO HAPPY!!!!','I’m so excited!','We won!'])assert.equal(contextEmotion(text),'celebration',text);assert.equal(contextEmotion('love you guys!'),'love');assert.equal(contextEmotion('Thank you so much!'),'gratitude')});
 test('negation, grief, ambiguous cues, sarcasm and quoted material do not celebrate',()=>{for(const text of ['Im not happy','yay I failed again','Yay, my dog died','great','sure, wonderful','yay jk','YAY more homework','IM SO HAPPY? no','Yay, yeah right','> YAY!!!','`YAY`','https://example.com/yay'])assert.equal(contextEmotion(text),null,text);assert.equal(contextEmotion('Yay!!!',['I failed my test']),null);assert.equal(contextEmotion('I passed!',['I was sad yesterday']),'celebration')});
 
@@ -13,3 +13,5 @@ test('super sensitive recognizes brief cues and emojis while preserving safeguar
 test('requested natural phrases work at balanced sensitivity without uppercase',()=>{for(const [text,emotion]of [['Ugh this sucks!!!','frustration'],['That’s amazing!!','celebration'],['You make me nervous!','anxiety'],['I can’t live without you!','love'],['How dare you!','anger']]){assert.equal(contextEmotion(text,[],3),emotion,text);assert.equal(contextEmotion(text.toLowerCase(),[],3),emotion,text)}});
 
 test('specific phrases win over loose super-sensitive cues',()=>{assert.equal(contextEmotion('What a relief',[],5),'relief');assert.equal(contextEmotion('What a surprise',[],5),'surprise');assert.equal(contextEmotion('Im not happy',[],5),null)});
+
+test('effect duration clamps and rounds to half seconds',()=>{assert.equal(effectDuration(undefined),1.5);assert.equal(effectDuration(-5),.5);assert.equal(effectDuration(50),8);assert.equal(effectDuration(2.2),2);assert.equal(effectDuration(2.3),2.5);assert.equal(effectDuration(NaN),1.5)});
