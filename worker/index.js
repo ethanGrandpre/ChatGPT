@@ -1,3 +1,4 @@
+import {videoCall,videoGuestPath} from './video-call.js';
 import { groupme } from './groupme.js';
 import bundledAssets from './assets.generated.js';
 import { createRemoteJWKSet, jwtVerify, SignJWT } from 'jose';
@@ -54,13 +55,15 @@ function challengePage(env, request) {
 export function createHandler({ identityVerifier = verifyIdentity, networkFetch = fetch.bind(globalThis) } = {}) {
   return async function handle(request, env, ctx) {
     const config = configuration(env);
+    const url = new URL(request.url);
+    const sharedCall = videoGuestPath(url.pathname);
     let identity;
     const nativeAccess = !!ctx?.access;
     if (!nativeAccess && !config) return reply('Sign-in required. Enable Cloudflare Access for this Worker.', 403);
     try {
       if (nativeAccess) {
         const user = await ctx.access.getIdentity();
-        if (!user?.email || user.email.toLowerCase() !== (env.OWNER_EMAIL || '').trim().toLowerCase()) throw Error('Forbidden');
+        if (typeof user?.email!=='string'||!user.email.trim()||(!sharedCall&&user.email.toLowerCase() !== (env.OWNER_EMAIL || '').trim().toLowerCase())) throw Error('Forbidden');
         identity = { email: user.email, sub: user.id || user.email.toLowerCase() };
       } else identity = await identityVerifier(request, config);
     }
@@ -69,7 +72,6 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
     const botPartial = !!(env.TURNSTILE_SITE_KEY || env.TURNSTILE_SECRET_KEY || env.SESSION_SECRET);
     if (botPartial && !botConfigured) return reply('Bot protection configuration is incomplete.', 503);
     const botRequired = botConfigured || !nativeAccess;
-    const url = new URL(request.url);
     if (url.pathname === '/_security/identity') {
       if (botRequired && !(await verifiedSession(request, env, identity))) return reply('Verification required.', 403);
       return reply(JSON.stringify({ email: identity.email, logoutUrl: '/_security/logout' }), 200, { 'Content-Type': 'application/json' });
@@ -99,6 +101,7 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       const session = await new SignJWT({}).setProtectedHeader({ alg: 'HS256' }).setIssuer(url.origin).setAudience('dock-bot-check').setSubject(identity.sub).setIssuedAt().setExpirationTime('1h').sign(encoder.encode(env.SESSION_SECRET));
       return reply(JSON.stringify({ ok: true }), 200, { 'Content-Type': 'application/json', 'Set-Cookie': `${COOKIE}=${session}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=3600` });
     }
+    if(url.pathname==='/api/video-call'){if(botRequired&&!(await verifiedSession(request,env,identity)))return reply('Verification required.',403);return videoCall(request,env,identity,networkFetch)}
     if (url.pathname === '/api/tasks-push') {
       if (botRequired && !(await verifiedSession(request, env, identity))) return reply('Verification required.',403);
       if (!env.TASK_PUSH) return reply(JSON.stringify({configured:false,error:'Notification storage is not configured in this deployment.'}),503,{'Content-Type':'application/json'});
@@ -172,3 +175,5 @@ export default { fetch: createHandler() };
 export {TaskPush} from './task-push.js';
 
 export {GroupMePush} from './groupme-push.js';
+
+export {VideoRoom} from './video-call.js';

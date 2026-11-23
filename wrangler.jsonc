@@ -21,6 +21,10 @@
       {
         "name": "GROUPME_PUSH",
         "class_name": "GroupMePush"
+      },
+      {
+        "name": "VIDEO_ROOMS",
+        "class_name": "VideoRoom"
       }
     ]
   },
@@ -35,6 +39,12 @@
       "tag": "groupme-push-v1",
       "new_sqlite_classes": [
         "GroupMePush"
+      ]
+    },
+    {
+      "tag": "video-call-v1",
+      "new_sqlite_classes": [
+        "VideoRoom"
       ]
     }
   ]

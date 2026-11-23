@@ -1,5 +1,7 @@
 /* Private, owner-only synchronization for Dock project localStorage records. */
 (()=>{
+ // Shared call pages have no owner project records to synchronize.
+ if(document.currentScript?.dataset.sharedSession==='true'){window.DockProjectSync={ready:Promise.resolve()};return}
  const PREFIX='dock-',META='__dock_project_sync_meta_v1',CLIENT='__dock_project_sync_client_v1',DEVICE_KEY='dock-tasks-device-v1',MAX_VALUE=300000;
  let storage;try{storage=window.localStorage}catch{window.DockProjectSync={ready:Promise.resolve(),getStatus:()=> 'Browser storage is unavailable'};return}
  const rawSet=Storage.prototype.setItem,rawRemove=Storage.prototype.removeItem,rawClear=Storage.prototype.clear;
