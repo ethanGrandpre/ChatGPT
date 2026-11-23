@@ -90,3 +90,11 @@ The push contains no message payload. The service worker fetches short previews 
 ## Video Call with the other Dock user
 
 After the Video Call deployment, add the other person's email to the existing Cloudflare Access application's Allow policy with an **Emails** selector if it is not already allowed. Keep Access login enabled. The code permits signed-in guests only on the direct call project/room API; the owner's other projects and records remain owner-only. The invite link opens the call project directly. For restricted networks, configure Cloudflare Realtime TURN using `VIDEO_TURN_KEY_ID` and Worker secret `VIDEO_TURN_API_TOKEN`; see `projects/video-call/README.md` for network limitations and setup. The new `video-call-v1` Durable Object migration deploys with the normal Worker build.
+
+## Jane’s personalized workspace
+
+After the member-workspace deployment, the owner still sees the full existing hub. Any non-owner identity admitted by native Cloudflare Access gets Jane’s cherry-blossom welcome page and only Video Call / GroupMe. Since Jane is the only intended guest, keep the Access Allow policy limited to the owner's and Jane's email addresses; do not use Bypass/Everyone. Her email does not need to be embedded in source: server storage is scoped to her authenticated identity.
+
+Jane opens GroupMe → connects **her own** GroupMe Developer access token → Run. Tokens are validated and kept in the new `MEMBER_ACCOUNTS` Durable Object, with no fallback to the Worker's owner `GROUPME_ACCESS_TOKEN`. Chat preferences, saved messages, unread state and notification subscriptions belong to her workspace. Calls use the signed-in participant identity and existing room invitations.
+
+Owner Settings → **Preview Jane’s Dock** reloads into her themed welcome animation with separate demo settings and no GroupMe connection by default. In preview, Settings → turn the same switch off to return. This does not open Jane’s real private account. The `member-workspace-v1` migration creates the MemberAccount object on normal Worker deployment. A single browser profile has one active Access login and one push registration per app scope; reconnect notifications after switching accounts on the same physical browser.

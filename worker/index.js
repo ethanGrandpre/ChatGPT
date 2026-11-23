@@ -1,3 +1,4 @@
+import {memberPath,memberSyncKey,installMemberStorage} from './member-account.js';
 import {videoCall,videoGuestPath} from './video-call.js';
 import { groupme } from './groupme.js';
 import bundledAssets from './assets.generated.js';
@@ -56,7 +57,7 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
   return async function handle(request, env, ctx) {
     const config = configuration(env);
     const url = new URL(request.url);
-    const sharedCall = videoGuestPath(url.pathname);
+    const sharedCall = videoGuestPath(url.pathname)||memberPath(url.pathname);
     let identity;
     const nativeAccess = !!ctx?.access;
     if (!nativeAccess && !config) return reply('Sign-in required. Enable Cloudflare Access for this Worker.', 403);
@@ -68,13 +69,20 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       } else identity = await identityVerifier(request, config);
     }
     catch { return reply('Sign-in required. Only the workspace owner can access this site.', 403); }
+    const actualOwner=identity.email.toLowerCase()===(env.OWNER_EMAIL||'').trim().toLowerCase();
+    const preview=actualOwner&&request.headers.get('Cookie')?.split(';').some(c=>c.trim()==='__Host-dock_preview_jane=1');
+    const member=!actualOwner||!!preview;const memberId=(preview?'preview:':'')+identity.email.toLowerCase();
+    const expectedWorkspace=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(memberId))),b=>b.toString(16).padStart(2,'0')).join('');
+    if(url.pathname!=='/_security/member-preview'&&request.headers.has('X-Dock-Workspace')&&request.headers.get('X-Dock-Workspace')!==expectedWorkspace)return reply(JSON.stringify({error:'Workspace session changed. Reload Dock to continue.'}),409,{'Content-Type':'application/json'});
+    if(preview&&!sharedCall&&url.pathname!=='/_security/member-preview')return reply('This project is not available in Jane’s preview.',403);
     const botConfigured = !!(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY && env.SESSION_SECRET?.length >= 32);
     const botPartial = !!(env.TURNSTILE_SITE_KEY || env.TURNSTILE_SECRET_KEY || env.SESSION_SECRET);
     if (botPartial && !botConfigured) return reply('Bot protection configuration is incomplete.', 503);
     const botRequired = botConfigured || !nativeAccess;
+    if(url.pathname==='/_security/member-preview'){if(!actualOwner)return reply('Owner only.',403);if(botRequired&&!(await verifiedSession(request,env,identity)))return reply('Verification required.',403);if(request.method!=='POST'||request.headers.get('Origin')!==url.origin||!request.headers.get('Content-Type')?.startsWith('application/json'))return reply('Invalid preview request.',403);let body='';for await(const chunk of request.body||[]){body+=new TextDecoder().decode(chunk);if(body.length>80)return reply('Invalid preview request.',400)}let data;try{data=JSON.parse(body)}catch{return reply('Invalid JSON.',400)}if(typeof data.enabled!=='boolean')return reply('Invalid preview setting.',400);return reply(JSON.stringify({enabled:data.enabled}),200,{'Content-Type':'application/json','Set-Cookie':'__Host-dock_preview_jane='+ (data.enabled?'1':'')+'; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age='+(data.enabled?'3600':'0')})}
     if (url.pathname === '/_security/identity') {
       if (botRequired && !(await verifiedSession(request, env, identity))) return reply('Verification required.', 403);
-      return reply(JSON.stringify({ email: identity.email, logoutUrl: '/_security/logout' }), 200, { 'Content-Type': 'application/json' });
+      return reply(JSON.stringify({ email: identity.email, name:member?'Jane':'Ethan',role:member?'member':'owner',logoutUrl: '/_security/logout' }), 200, { 'Content-Type': 'application/json' });
     }
     if (url.pathname === '/_security/logout') {
       return reply('', 303, { Location: '/cdn-cgi/access/logout', 'Set-Cookie': `${COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0` });
@@ -101,7 +109,9 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       const session = await new SignJWT({}).setProtectedHeader({ alg: 'HS256' }).setIssuer(url.origin).setAudience('dock-bot-check').setSubject(identity.sub).setIssuedAt().setExpirationTime('1h').sign(encoder.encode(env.SESSION_SECRET));
       return reply(JSON.stringify({ ok: true }), 200, { 'Content-Type': 'application/json', 'Set-Cookie': `${COOKIE}=${session}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=3600` });
     }
-    if(url.pathname==='/api/video-call'){if(botRequired&&!(await verifiedSession(request,env,identity)))return reply('Verification required.',403);return videoCall(request,env,identity,networkFetch)}
+    if(url.pathname==='/member-session.js'){if(botRequired&&!(await verifiedSession(request,env,identity)))return reply('Verification required.',403);const bytes=await crypto.subtle.digest('SHA-256',encoder.encode(memberId));const key=Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');const profile={owner:!member,preview:!!preview,name:member?'Jane':'Ethan',email:identity.email,key};return reply('('+installMemberStorage.toString()+')('+JSON.stringify(profile).replace(/</g,'\\u003c')+')',200,{'Content-Type':'text/javascript; charset=utf-8'})}
+    if(member&&(url.pathname==='/api/groupme-account'||url.pathname==='/api/groupme-push'||url.pathname.startsWith('/api/groupme/'))){if(botRequired&&!(await verifiedSession(request,env,identity)))return reply('Verification required.',403);if(!env.MEMBER_ACCOUNTS)return reply(JSON.stringify({error:'Your account workspace is waiting for the latest deployment.'}),503,{'Content-Type':'application/json'});if(!['GET','POST','DELETE'].includes(request.method))return reply('Method not allowed.',405);if(request.method!=='GET'&&(request.headers.get('Origin')!==url.origin||(!['/api/groupme/upload','/api/groupme/audio'].includes(url.pathname)&&!request.headers.get('Content-Type')?.startsWith('application/json'))))return reply('Invalid origin or content type.',403);return env.MEMBER_ACCOUNTS.get(env.MEMBER_ACCOUNTS.idFromName(memberId)).fetch(request)}
+    if(url.pathname==='/api/video-call'){if(botRequired&&!(await verifiedSession(request,env,identity)))return reply('Verification required.',403);return videoCall(request,env,preview?{...identity,sub:'preview:'+identity.sub}:identity,networkFetch)}
     if (url.pathname === '/api/tasks-push') {
       if (botRequired && !(await verifiedSession(request, env, identity))) return reply('Verification required.',403);
       if (!env.TASK_PUSH) return reply(JSON.stringify({configured:false,error:'Notification storage is not configured in this deployment.'}),503,{'Content-Type':'application/json'});
@@ -115,8 +125,9 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       if (!env.TASK_PUSH) return reply(JSON.stringify({error:'Sync storage is not configured in this deployment.'}),503,{'Content-Type':'application/json'});
       if (!['GET','POST'].includes(request.method)) return reply('Method not allowed.',405,{Allow:'GET, POST'});
       if (request.method==='POST' && (request.headers.get('Origin')!==url.origin || !request.headers.get('Content-Type')?.startsWith('application/json'))) return reply('Invalid origin or content type.',403);
-      const objectId=env.TASK_PUSH.idFromName(identity.email.toLowerCase());
-      return env.TASK_PUSH.get(objectId).fetch(request);
+      const objectId=env.TASK_PUSH.idFromName(member?'member:'+memberId:identity.email.toLowerCase());
+      let syncRequest=request;if(member&&request.method==='POST'){let text='',bytes=0;const decoder=new TextDecoder();for await(const chunk of request.body||[]){bytes+=chunk.length;text+=decoder.decode(chunk,{stream:true});if(bytes>6500000)return reply('Sync data too large.',413)}text+=decoder.decode();let data;try{data=JSON.parse(text)}catch{return reply('Invalid JSON.',400)}if(!data.entries||Object.keys(data.entries).some(key=>!memberSyncKey(key)))return reply('This project is not in your workspace.',403);syncRequest=new Request(request,{body:text})}
+      const result=await env.TASK_PUSH.get(objectId).fetch(syncRequest);if(!member||!result.ok)return result;const data=await result.json();data.entries=Object.fromEntries(Object.entries(data.entries||{}).filter(([key])=>memberSyncKey(key)));return reply(JSON.stringify(data),200,{'Content-Type':'application/json'});
     }
     if(url.pathname==='/api/groupme-push'){
       if(botRequired&&!(await verifiedSession(request,env,identity)))return reply('Verification required.',403);
@@ -153,10 +164,12 @@ export function createHandler({ identityVerifier = verifyIdentity, networkFetch 
       try { return await networkFetch(new Request(new URL('/stream',endpoint),{headers,redirect:'error'})); }
       catch { return reply('Browser server unavailable. Check that your Mac server and tunnel are running.',502); }
     }
+    if(member&&url.pathname==='/projects.json'){const projects=[{id:'video-call',name:'Video Call',description:'A private call for two.',url:'projects/video-call/',runUrl:'projects/video-call/run.html'},{id:'groupme-messages',name:'GroupMe',description:'Your own chats and groups.',url:'projects/groupme-messages/',runUrl:'projects/groupme-messages/run.html'}];return reply(JSON.stringify(projects),200,{'Content-Type':'application/json'})}
+    const memberAsset=member?(['/','/index.html'].includes(url.pathname)?'/member-hub.html':['/projects/groupme-messages/','/projects/groupme-messages/index.html'].includes(url.pathname)?'/member-groupme.html':null):null;
     let response;
-    if (env.ASSETS) response = await env.ASSETS.fetch(request);
+    if (env.ASSETS) response = await env.ASSETS.fetch(memberAsset?new Request(new URL(memberAsset,url),request):request);
     else {
-      const path = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
+      const path = memberAsset||(url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname);
       const encoded = bundledAssets[path];
       if (!encoded) return reply('Not found.', 404);
       const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
@@ -177,3 +190,5 @@ export {TaskPush} from './task-push.js';
 export {GroupMePush} from './groupme-push.js';
 
 export {VideoRoom} from './video-call.js';
+
+export {MemberAccount} from './member-account.js';

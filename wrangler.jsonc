@@ -25,6 +25,10 @@
       {
         "name": "VIDEO_ROOMS",
         "class_name": "VideoRoom"
+      },
+      {
+        "name": "MEMBER_ACCOUNTS",
+        "class_name": "MemberAccount"
       }
     ]
   },
@@ -45,6 +49,12 @@
       "tag": "video-call-v1",
       "new_sqlite_classes": [
         "VideoRoom"
+      ]
+    },
+    {
+      "tag": "member-workspace-v1",
+      "new_sqlite_classes": [
+        "MemberAccount"
       ]
     }
   ]
